@@ -39,6 +39,8 @@ vs remix
   - 404の実装はremixのほうが楽
   - github pages以外の場合ではいずれにしろ、nginxがいる
   - できるできないではなく、ファイルの配置の違いでしかない
+  - 認証
+    remix-authとnext-authの違い。db schema,役割の切り方 
 
 ## 技術選択
 特定の要件があるなら、それを選べばいい
