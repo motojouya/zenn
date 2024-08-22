@@ -13,6 +13,11 @@ published: false
 - エラー
 - 例外
 
+## エラーの種類
+- ユーザが対処できるか否か
+- typescriptに怒られるか否か
+- IOがからむか否か
+
 ## エラーの表現
 - numbar
 - string
