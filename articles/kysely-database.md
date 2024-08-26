@@ -26,21 +26,39 @@ published: false
 - relationを表現するか
 - sqlを意識するか
 
+{table|row}gatewayが、純粋にレコードを取ってくる仕組み。
+data mapperというのは、処理のためにデータを取ってくる。
+両者の間にはギャップがあって、後者のほうがよりアプリケーションのために整形とかいろいろするが、前者はただただ取ってくるだけ。
+active recordはdata mapperと比較する概念で、オブジェクト自体が多機能であるか、dbアクセスが分離されているかの違い。
+query builderは、queryを組み立てるという意味で、active record上でも、data mapper上でも使えるはず。
+data mapperの代表例はrepositoryになるはず。
+という整理
+あとはsql templateもある
+
+active recordはこき下ろす。
+
 ## ライブラリ
 - prisma
 - drizzle
 - kysely
 - knex
 
+上記の整理の上で、repositoryとactive record、query builderなどを組み合わせて、ライブラリが成り立っている。
+一つの概念では開発者体験を網羅できないので、その組み合わせ自体から評価できるはず
+
 ## sql
 1. テーブルにprimary keyでアクセス
 2. join
 3. where句へのややこしい条件
+4. group by
+5. 動的なクエリ
 
 where句へのややこしい条件がある場合は、joinが必要なことも多い
 
 kyselyでwhere句をややこしくできるようなutilityを用意するなら、relationの仕組みもいる。
 utilityとしては、1のみ実現できればよい。
+
+別軸として、チューニングするか否かちう区別もある
 
 ## utility
 実装と利用。ts-ignore
