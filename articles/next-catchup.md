@@ -40,7 +40,11 @@ vs remix
   - github pages以外の場合ではいずれにしろ、nginxがいる
   - できるできないではなく、ファイルの配置の違いでしかない
   - 認証
-    remix-authとnext-authの違い。db schema,役割の切り方 
+    remix-authとnext-authの違い。db schema,役割の切り方
+- 無限スクロールのfetch
+  server actionsを使うやり方もありそう
+  https://zenn.dev/akfm/books/nextjs-basic-principle/viewer/part_1_interactive_fetch
+  ただ、postでデータ取得するの抵抗ある
 
 ## 技術選択
 特定の要件があるなら、それを選べばいい
