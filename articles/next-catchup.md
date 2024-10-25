@@ -6,6 +6,13 @@ topics: ['Next.js']
 published: false
 ---
 
+この記事は主張を変えてNext.jsでの設計に言及。DIの内容もここに混ぜ込む。
+remixとの比較は、なんか安っぽい記事になりそうなのでやめる
+
+代わりに比較の中で言及するつもりだったauth.jsとかの紹介や設計上の立ち位置
+next.jsの中で動かすDIとしてのcontext binder
+安定したものならremixのほうがpositiveで軽く根拠にも言及する
+
 ## intro
 
 実際は、プログラマとしての書きやすさも重要

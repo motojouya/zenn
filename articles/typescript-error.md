@@ -55,5 +55,8 @@ published: false
 - neverthrow
 - effect
 
+試したPR
+https://github.com/motojouya/croaker/pull/42
+
 ## outro
 
