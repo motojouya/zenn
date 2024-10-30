@@ -57,7 +57,7 @@ https://nextjs.org/docs/app/api-reference/functions/fetch
 App Routerの目玉はやはりReact Server Componentだ。（以降はRSC）
 これ自体はReactの機能だが、現時点では実質App Routerでしか利用できず、App Routerの機能と表現しても差し支えないだろう。
 
-RSCは、それ自体がいろんな要素が詰まったものであり、今までのgetServerSidePropsとだけ比較するべくものではない。
+RSCは、データ取得ロジックと、コンポーネントレンダリングという２つの機能を持つものであり、データ取得の観点からだけでは評価できない。
 ただ、Remixの機能と比較する際には、サーバサイドのロジックをどうするかという視点で比較できるだろう。
 
 視点としては、以下があるだろう。
@@ -79,25 +79,31 @@ Remixでは、同一pathに配置したファイルに、exportするコンポ�
 機能の設計としては、Remixのほうが単純で理解がし易いという印象がある。
 
 ただ、上記だけで比較するのは早計であり、実現できる状況を想定したほうがよい。
+いくつか制約があり、それを理解しなければならない。
 
-Remixにおいては、特定のコンポーネントから参照できるloaderやaction関数は一つのようだ。
-したがって、特定のコンポーネントで複数回サーバサイドに問い合わせを行う場面においては、loader関数内で処理を分岐させるなどの工夫が必要になる。
+まず第一にRemixのloader,actionは、特定のパスに対して一つしか実装できない。
+特定のパスにexportするコンポーネントを実装したら、それに対応するloaderやactionは一つしかできない。
+そのコンポーネントから、様々なデータをfetchしたり、更新する場合には、別のパスに実装が必要だ。
 
-これは、RSCにおいても構造上は同様で、RSC内で定義したデータを取得するしかない。
-ただ、React Componentというのは、特定のデータの表現であり、多様なデータを受け入れるような設計は、基本的にしないほうがいいだろう。
-Remixにおいては、Nested Routeという機能で、複数のファイル（つまり複数のloader関数）を組み合わせる方法もある。
-RSCでも、取得するデータが違うなら、別のRSCを用意すべきだろう。
+loaderに関して言えば、特定のコンポーネントは様々なデータを受け入れるのではなく、特定のデータの表現としてコンポーネントがあるはずなので、一つしかないというのは実のところ、自然に感じる。
+とは言え、実際にそうも言っていられないこともあるので、そういったときはパスを分けて、Nested Routeという機能で複数のコンポーネント（つまりloaderも）を組み合わせることが可能なようだ。
 
-ただ、上記はデータ取得を想定した状況であり、POSTな処理においては、特定のコンポーネントから、複数のパターンのPOST処理を利用できる状況も考えられるだろう。
-App RouterのServer Actionsは、Formと紐づけて呼び出すこともできるし、単純に副作用を起こす関数として呼び出すこともできる。複数種類を混ぜ込める。
-Remixのaction関数はそういう風になっていないので、少し工夫が必要そうだ。
+この構図は、実はRSCにも存在し、それが第二に理解しておくべき制約になる。
+RSC自体、データ取得とコンポーネントのレンダリングの2つの機能が混ざっているので、当然データ取得とコンポーネントは同一でなくてはならない。
+ただし、RemixのNested Routeのような機能を用いなくても、通常通りコンポーネントを組み合わせれば、複数のコンポーネントとそれに紐づくデータ取得を実現できる。
 
-今回、筆者が開発したアプリケーションは、無限スクロールの実装がある。
-これはGETの処理だが、RSCの機能での実現は難しく感じた。したがってbの機能は使わず、aの機能で実装する形を取った。
-Remixであれば、bの機能で、複数回アクセスしてデータ取得できるはずなので、そういった違いもある。
+RSCの制約は、他の部分にも影響し、クライアントサイドでは、データ取得ができないため、必然的にRSCではなくClient ComponentからaのEndpointを用いることになる。
+今回無限スクロールの実装を行ったが、これはaの方法でEndpointを作成した。
+
+第一の制約に戻るが、loader、つまりデータ取得については言及し、コンポーネント単位でloaderを実装するのは自然と述べた。
+ただ、POSTな更新処理についてはそういうわけにはいかない。コンポーネントに対して、複数の更新処理が紐づいていることはよくある。
+この状況をカバーするにはやはりaのEndpointのパターンを用いて実装する必要がある。
+
+App RouterのServer Actionsは特定のコンポーネントから、いくらでも呼べるので、そのような制約はない。
 
 サーバサイドの機能に焦点を絞ると、上記のような細かい違いが存在する。
 実質的にaのEndpointを切ってしまえばどうとでもなるので、結局のところ実現したい画面はどちらでも実装可能だ。
+ただ、使用感にはそれぞれ特徴があり、好みが分かれるかもしれない。
 
 すでに述べた通り、RSCは上記の比較以上の影響を持った技術要素なので、RSCの機能をフルに使いたいならApp Routerを採用するだろう。
 反面、できることが絞られ、わかりやすいのはRemixのほうだと感じる。
@@ -134,33 +140,22 @@ Auth.jsはApp RouterでもRemixでも利用できるが、App Routerの場合は
 反面、Remixはremix-authがある。
 Auth.jsとremix-authは特徴がだいぶ違うので、App RouterとRemixの比較要素としてあげたほうがよいと判断した。
 
-
-認証は、IDパスワードの管理など、面倒が多いので外部に頼りたい。
-有料のサービスではなく、ライブラリから外部のIDプロバイダーを利用したい。
-Next.jsにおいては、Auth.jsの利用がデファクトスタンダードのようだった。
-
 Auth.jsを見て最初にギョッとしたのは、DBスキーマの強制だ。
 以下はPrismaの例だが、指定されたスキーマを作らなくてはならない。
 https://authjs.dev/getting-started/adapters/prisma
 
-ライブラリは、基本的に機能を提供し、それにあったスキーマを設計し、状況によってはそのスキーマを改修しながらアプリケーションを育てていくものだと考える。
-そう考えていたので、ライブラリにスキーマを指定されるというのは面食らった。
-
-Remixにおいては、remix-authがある。remix-authならばスキーマを指定しない。
+remix-authならばスキーマを指定しない。
 反面、DBに認可の連携情報を記録するのは、自分で実装しなければならないようだった。
 https://remix.run/resources/remix-auth
 
-ここも基本的にはスキーマ設計というのはアプリケーションエンジニアのコントロール領域だという考えから、remix-authのほうがポジティブに感じる。
+基本的にはスキーマ設計というのはアプリケーションエンジニアのコントロール領域だという考えから、remix-authのほうがポジティブに感じる。
 ただ、IDプロバイダーからの情報や、セッション管理の情報などは、基本的な考え方があるはずで、たしかに理想的なスキーマは指定の形に落ち着くかもしれない。
-また、スキーマを改修する際も、拡張情報ならば別テーブルを用意したほうが理想的になる場面も多そうだ。つまりAuth.jsの指定するスキーマを改修することは想定しなくていい。
+また、スキーマを改修する際も、拡張情報ならば別テーブルを用意したほうが理想的になる場面も多そうだ。
+つまりAuth.jsの指定するスキーマを改修することは想定しなくていい。
 
-そう考えるならば、Next.js App RouterでAuth.jsになれるほうがいいだろうと考えた。
-ただ、Auth.jsはなるべくアプリケーションのコードからは隔離したい。
-Auth.jsのスキーマをなるべく意識せず、またAuth.jsから切り替えやすくしておきたい。
-
-### Start Up
-Remixは組み込みサーバでも動く。起動プログラムを書いて、ライブラリとしてRemixをimportして起動することが可能なので、起動時のカスタマイズができる。
-Next.jsはそういったことはできず、Next.jsを起動しなくてはならない。どこかにstart up時のhookくらいはありそうだが、調べきれなかった。
+最初はギョッとしたが、実害はなさそうだという印象を持った。
+ただ、このような特徴的なライブラリは、できる限りアプリケーションコードからは隔離し、できる限りVersion Upや、ライブラリ変更の影響を小さくしたい。
+基本的な機能としては、remix-authのほうが必要十分な印象だ。
 
 ### 結論
 Remixのほうができることが少なく、プログラマが自分で考えて実装しやすい。Web標準というポリシーも掲げ、わかりやすい作りになっていそうだ。
@@ -178,22 +173,99 @@ Next.jsはWebフロントエンドのためのフレームワークであり、�
 API Routeでリクエストを受け付けることができるが、受け付けるだけでその後のことは何もしてくれない。
 
 基本的にはリレーショナルデータベースを利用するので、PrismaなりのDBアクセスライブラリは利用するとして、そこに至るまでのアプリケーションの記載を支援する仕組みが必要になる。
+以下のようなものがあるだろう。
 - Session管理
 - リクエストハンドリング
 - DI
 - トランザクション管理
 - ロギング
 
+上記にたいしてどう用意すべきか検討する。
+
 ### Session管理
 Session管理は、Auth.jsに任せることになる。
-- clientからアクセスしない
-- サーバサイドでもuser_idのみ引き渡す形とする
+Auth.jsはサーバサイドでsession情報を取り出す役目だが、クライアントサイドでも透過的にサーバからSession情報を取得できる。
 
-機能としては、後述するリクエストハンドリングを行う部分に実装を差し込む。
+ただし、基本的にはクライアントサイドでAuth.jsのAPIは用いいないことにした。
+以下の記事でも言及したが、Auth.jsはDBスキーマまで口出してくるライブラリで、なるべく変更の影響を小さくしたい。
+
+これはサーバサイドでも同様で、Sessionから取り出すのはユーザの特定に必要なuser.idのみで、あとの処理では、Auth.jsで指定されたスキーマは参照、更新を一切しないこととした。
+
+クライアントサイドでSession情報を得る際には、App Routerのlayout.tsxでsession情報を取得し、クライアントサイドでハイドレーションされたらContextに登録して子コンポーネントから利用する。
+サーバサイドでも、userテーブルの他に、特定のユーザを表現するテーブルを別途作り、そこにだけuser_idという紐づけのカラムを用意することで、Auth.jsのスキーマに触れないようにした。
+
+ちなみに実装としては、後述するリクエストハンドリングを行う部分に実装を差し込む。
 
 ### リクエストハンドリング
-よくある事例なので、サンプルコードのURLを記載する。
-機能としてAuth.js、formとjsonを分ける。server actions用のものも用意するなどには言及したい。
+よくあるパターンだが、Zodを使って入力値のバリデーションを行い、型の制約を表現した。
+また、例外発生時にはHTTP Status Codeをコントロールできる実装もしている。
+そして、Auth.jsからSession情報を取得する役割もここに実装している。
+
+上記の機能を果たすヘルパー関数を用意した。
+以下のようなコードになる。
+
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import type { Session } from "next-auth";
+import { z } from "zod";
+import { auth } from "./nextAuthOptions";
+import { parse } from "./zodHelper";
+import { getUserId } from "./sessionHelper";
+
+type AppRouteHandlerFnContext = {
+  params?: Record<string, string | string[]>;
+};
+type AppRouteHandlerFn = (
+  req: NextRequest,
+  ctx: AppRouteHandlerFnContext,
+) => void | Response | Promise<void | Response>;
+
+export function getRouteHandler<P extends z.SomeZodObject, R>(
+  pathSchema: P | null,
+  callback: (userId: String, path: z.infer<P> | null) => Promise<R>,
+): AppRouteHandlerFn {
+
+  return auth(async (req, { params }) => {
+
+    const pathArgs = pathSchema ? parse(pathSchema, params) : null; // path parameterをzodにかける
+
+    try {
+      const userId = getUserId(req.auth); // SessionからuserIdを取得
+
+      const result = await callback(userId, pathArgs); // 実際の処理実行
+
+      return NextResponse.json(result);
+
+    } catch (e) {
+      if (e instanceof Error) {
+        return new NextResponse(e.message, { status: 500 });
+      } else {
+        return new NextResponse("something happened!", { status: 500 });
+      }
+    }
+  });
+}
+```
+
+また、利用する際は、以下のように書く。
+
+```ts
+import { getRouteHandler } from "./routeHandlerHelper";
+import { z } from "zod";
+
+const pathSchema = z.object({
+  val: z.coerce.number(),
+});
+
+export const GET = getRouteHandler(pathSchema, (userId, p) => ({ path: val }));
+```
+
+上記はpath parameterのparseの実装だが、実際にはFormData, Request Body, Query Parameterなどのデータも処理できなくてはならない。
+基本的にFormData, Request Body, Query Parameterは同時に利用される可能性は少なく、個別に実装すればよい。
+以下の3パターンのためのヘルパー関数を用意すればよい。
+- Path Parameter + FormData
+- Path Parameter + Request Body
+- Path Parameter + Query Parameter
 
 ### DI
 Context Binderについて
@@ -211,7 +283,6 @@ TODO サンプルコードあったほうがいいかも。反例として。
 ### ロギング
 ロギングは今回は実装していない。
 本当は考えなくてはならないのであげたが、今回は検討していないので解説しない。
-
 
 ## DIモジュールについて
 テストが目的で、最小限のコード
