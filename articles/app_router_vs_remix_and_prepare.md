@@ -53,16 +53,16 @@ https://nextjs.org/docs/app/api-reference/functions/fetch
 ただ、筆者としてもWeb標準を遵守しますというポリシーを掲げているフレームワークのほうが安心できる。将来にわたって混乱が少なそうなのはポリシーを掲げている側だろう。
 
 ### Path設計を不要にする技術
-Next.jsでもRemixでも、API Routeを実装し、そのpathにリクエストを送れば、サーバサイドの機能を実現できる。
-ただ、どうしてもpath設計が必要になり煩雑だ。
+Next.jsでもRemixでも、API Routeを実装し、そのPathにリクエストを送れば、サーバサイドの機能を利用できる。
+ただ、どうしてもPath設計(URL設計)が必要になり煩雑だ。
 
-すでに開発を終えた時点での感想だが、最初はすべてpath設計をしてクライアントサイドと、サーバサイドをなるべく疎結合にしようと考えていた。
+すでに開発を終えた時点での感想だが、最初はすべてPath設計をしてクライアントサイドと、サーバサイドをなるべく疎結合にしようと考えていた。
 ただ多くの場合において、サーバサイドの機能は、特定の画面でのみ利用される傾向が強い。
-当然、疎結合な感じで、RESTfulな設計をした特定pathの機能を、画面が使うという構図が成り立つ画面もあるだろう。
+当然、疎結合な感じで、RESTfulな設計をした特定Pathの機能を、画面が使うという構図が成り立つ画面もあるだろう。
 だが、そうでないのであれば逆に画面に対するサーバ実装は専用のもの、つまり密結合な状態を目指してもいいはずだ。
 そう考えた際に`画面 -> URL -> サーバ実装`というたどり方が面倒に感じ、取り払いたくなる。
 
-この章では、path設計をせずに、画面とサーバ実装を直接つなぐ機能について、言及していく。
+この章では、Path設計をせずに、画面とサーバ実装を直接つなぐ機能について、言及していく。
 App RouterでもRemixでも、それに該当する機能は存在するが、データ取得するGET処理と、データ更新するPOST処理でそれぞれ機能が違う。
 
 App Routerにおいては、以下が該当する
@@ -73,7 +73,9 @@ Remixにおいては以下だ
   GET: loader関数
   POST: action関数
 
-App RouterでもRemixでも、path設計を取り除くというのはできるが、どちらもそれぞれ制約や癖があるため、解説していく。
+App RouterでもRemixでも、Path設計を取り除くというのはできるが、どちらもそれぞれ制約や癖があるため、解説していく。
+
+TODO 以下のgetとpostのパートは文字が多くて根拠のリンクがない。公式ドキュメントへのリンクを貼り付けたい
 
 #### GET
 まず言及しなくてはならないのはRSCだろう。
@@ -82,12 +84,12 @@ Next.js Page Routerでは、React Componentと同じ名前空間にgetServerSide
 ただ、サーバサイドの機能は含んでいるので、その点に着目する。
 
 RSCは、サーバサイドでしか実行できない。つまりクライアントで実行し、透過的にサーバにリクエストを送るという機能はない。
-今回の実装では、無限スクロールがあり、スクロール毎にリクエストしてデータ取得する必要があるが、RSCでは実現できないので、path設計はどうしても必要になる。
+今回の実装では、無限スクロールがあり、スクロール毎にリクエストしてデータ取得する必要があるが、RSCでは実現できないので、Path設計はどうしても必要になる。
 
 Remixのloaderはそういった制約はなく、サーバサイドでSSRされるときにも呼び出され、クライアントサイドでもloaderを呼び出すことができる。
-ただ、loaderの制約は、特定のpathに対して一つしか実装できないという点にある。
-特定の画面のpathにコンポーネントが存在する場合、loaderも一つしかできない。
-コンポーネントが、多様なデータを表現したい場合は、別のpath設計が必要になる。
+ただ、loaderの制約は、特定のPathに対して一つしか実装できないという点にある。
+特定の画面のPathにコンポーネントが存在する場合、loaderも一つしかできない。
+コンポーネントが、多様なデータを表現したい場合は、別のPath設計が必要になる。
 ただ、コンポーネントが多様なデータを表現するのではなく、データの表現としてコンポーネントがあるほうが自然なので、これはむしろ当たり前の制約と言えそうだ。
 もし、そういった様々なデータを組み合わせたければ、Nested Routeという機能で、コンポーネント（つまりloaderも）を組み合わせることもできる。
 
@@ -101,10 +103,12 @@ App RouterのServer Actionsは実のところ、あまり制約がない。
 Formと紐づけることもできるし、コード上は副作用を起こすただの関数のように呼び出すこともできる。
 特定の画面で複数のServer Actionsを実装、呼び出すことも可能だ。
 
-Remixのaction関数は、loaderと同様の制約、つまり特定のpathに対して一つしか実装できないというものがある。
+TODO remixのactionはformと紐づけなくてはならない？調べたほうがよさそう
+
+Remixのaction関数は、loaderと同様の制約、つまり特定のPathに対して一つしか実装できないというものがある。
 データ取得と違って、特定のデータに対する操作は、複数パターン考えられるので、これは強い制約と言えそうだ。
 
-もう一点、Remixのloaderとactionは、同じ名前空間でexportするコンポーネントがあれば、そのコンポーネント用のGET処理、POST処理としてpath設計不要で利用できる。
+もう一点、Remixのloaderとactionは、同じ名前空間でexportするコンポーネントがあれば、そのコンポーネント用のGET処理、POST処理としてPath設計不要で利用できる。
 逆にexportするコンポーネントがなければ、ただただGET、POST用のAPI Routeとしての実装になる。
 名前が同じだが、機能は違うという意味で区別が付きづらくなるかもしれないが、実際の実装としてはほぼ等価になりそうなものなので、逆にわかりやすくもある。
 
@@ -202,6 +206,9 @@ RSCとClient Componentの使い分けも、それほど迷わずに考えられ�
 そういう風に学びになり、あーこういうものだと理解できたからこそ、選べる技術選択もあるので、今回は良かったと考えている。
 
 ## 不足の機能
+App RouterとRemixを比較してきた。ここからは、App Routerを使う上で、補っておかなければならない機能について言及する。
+また、App Router + Auth.jsを想定しているが、以下に記載していく内容は、Remix + remix-authでも同様のケアをすべきものだ。
+
 Next.jsはWebフロントエンドのためのフレームワークであり、サーバサイドの機能をあまり持たない。
 API Routeでリクエストを受け付けることができるが、受け付けるだけでその後のことは何もしてくれない。
 
@@ -213,21 +220,54 @@ API Routeでリクエストを受け付けることができるが、受け付�
 - トランザクション管理
 - ロギング
 
-上記にたいしてどう用意すべきか検討する。
+上記にたいしてどう用意すべきか検討していく。
 
 ### Session管理
 Session管理は、Auth.jsに任せることになる。
 Auth.jsはサーバサイドでsession情報を取り出す役目だが、クライアントサイドでも透過的にサーバからSession情報を取得できる。
 
 ただし、基本的にはクライアントサイドでAuth.jsのAPIは用いいないことにした。
-以下の記事でも言及したが、Auth.jsはDBスキーマまで口出してくるライブラリで、なるべく変更の影響を小さくしたい。
-
+すでに言及したが、Auth.jsはDBスキーマまで口出してくるライブラリで、なるべく変更の影響を小さくしたい。
 これはサーバサイドでも同様で、Sessionから取り出すのはユーザの特定に必要なuser.idのみで、あとの処理では、Auth.jsで指定されたスキーマは参照、更新を一切しないこととした。
 
 クライアントサイドでSession情報を得る際には、App Routerのlayout.tsxでsession情報を取得し、クライアントサイドでハイドレーションされたらContextに登録して子コンポーネントから利用する。
-サーバサイドでも、userテーブルの他に、特定のユーザを表現するテーブルを別途作り、そこにだけuser_idという紐づけのカラムを用意することで、Auth.jsのスキーマに触れないようにした。
+以下がlayout.tsxの実装例だ。
 
-ちなみに実装としては、後述するリクエストハンドリングを行う部分に実装を差し込む。
+```tsx
+import type { Metadata } from "next";
+import "./globals.css";
+import { SessionProvider } from "./SessionProvider";
+import { getUser as getUserFromDB } from "../getUser";
+import { auth } from "../nextAuthOptions";
+
+export const metadata: Metadata = {
+  title: "Croaker",
+  description: "Someone croaks here",
+};
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const session = await auth();
+  const userId = getUserId(session);
+  const user = await getUserFromDB(userId);
+
+  return (
+    <html>
+      <body >
+        <SessionProvider user={user}>
+          {children}
+        </SessionProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+サーバサイドでも、userテーブルの他に、特定のユーザを表現するテーブルを別途作り、そこにだけuser_idという紐づけのカラムを用意することで、Auth.jsのスキーマに触れないようにした。
+ちなみに実装としては、後述するリクエストハンドリングを行う部分に実装を差し込むので、コード例はそちらで示す。
 
 ### リクエストハンドリング
 ここでリクエストハンドリングとは、受け取ったHTTP Requestを解釈、バリデーションし、処理に引き渡すこと。
@@ -266,7 +306,7 @@ export function getRouteHandler<P extends z.SomeZodObject, R>(
     const pathArgs = pathSchema ? parse(pathSchema, params) : null; // path parameterをzodにかける
 
     try {
-      const userId = getUserId(req.auth); // SessionからuserIdを取得
+      const userId = getUserId(req.auth); // SessionからuserIdを取得し、他のモジュールからはauth関数を参照しない。
 
       const result = await callback(userId, pathArgs); // 実際の処理実行
 
@@ -309,7 +349,7 @@ export const GET = getRouteHandler(pathSchema, (userId, p) => ({ path: val }));
 
 ### DI
 DIは依存性の解決であり、特にIOを生じさせるような処理をメインのロジックから切り離して、テストしやすくプラガブルにするために行う。
-ただ、DIはclassベースのプログラミングパラダイムから生まれてきた単語で、今回はclassはかなり限定的に使っているので、厳密な意味でのDIは存在しない。
+ただ、DIはclassベースのプログラミングパラダイムから生まれてきた単語で、今回はclassはかなり限定的に使っているので、厳密な意味でのDIは実装しない。
 
 IOの処理を分離し、テストをしやすくするというのは、classを用いなくても重要なテクニックになるので、それを実現する機能は実装している。
 解説の分量が多いので、別パートで解説する。
@@ -324,15 +364,18 @@ IOの処理を分離し、テストをしやすくするというのは、class�
 ちなみに以下のようなイメージで使う。
 
 ```ts
-const handle = (db) => (userId: string, userName: string) => {
-  const user = db.getUser(userId);
+const handle = (db, s3) => async (userId: string, userName: string) => {
+  const user = await db.getUser(userId);
+
+  // 他のIOをトランザクション内で行うか否かを選べる
+  await s3.put(user);
 
   // アプリケーションコードの中で、プログラマが意識的にトランザクションを開く
-  db.transact(trx => {
-     trx.updateUser(userId, userName);
+  await db.transact(trx => {
+     return await trx.updateUser(userId, userName);
   });
 
-  return db.getUser(userId);
+  return await db.getUser(userId);
 };
 ```
 
@@ -341,67 +384,160 @@ const handle = (db) => (userId: string, userName: string) => {
 本当は考えなくてはならないのであげたが、今回は検討していないので解説しない。
 
 ## DIモジュールについて
-テストが目的で、最小限のコード
+DIモジュールと記載したが、厳密にはDIではない。
 
-## 考えたかた
-難解な機能は避けつつ、メタなコードはアプリケーションに必要。選んで機能が重複しないように
-またライブラリ寄りならしかたないがアプリはより注意深く
-tsの型レベルプログラミングも、自由にするのではなく、1-100までの整数や、stringのunionのような、プログラマが把握できる制約まで狭めた範囲ならよい。
+### 目的
+DIは、様々な目的で利用されるが、そのすべての目的を達成しようとすると、やや重い実装になってしまう。
+まずは、DIで実現していたことの整理をする必要がある。
 
+- テストの際に、依存しているモジュールの影響を最小限に抑える
+- 実行環境により、依存モジュールを切り換えて実行できるようにする
+- 依存しているモジュールに更に依存があれば、再帰的に解決する
 
-## DIとは
-classの上に乗せた機能だが、classの考え方を基本にするなら、自然な機能
+最後の再帰的にというのは、目的とは違うかもしれないが、今回実装するうえでは、着目しておかなくてはならない部分だ。
+今回の実装は、上記3つのうち、最初のテストのためにしか、満たしていない。
 
-- DI
-  - classベースの考え方
-- DIコンテナ
-- 関数において先にbindすること
+### 実装
+実装としては、以下になった。
+GetContext型の設定を用意し、setContextで紐づけて準備しておく。
+実行時にはbindContext関数を使ってContextをbindして使う形になる。
 
-## DIの目的
-- テスト
-- 実装の切り替え
-  - 将来的
-  - 現在の実装
+```ts
+export type GetContext = Record<string, () => unknown>;
 
-## ライブラリの扱い
-wrapしましょう
-- 付け替えを内部でできる
-- ライブラリ利用のスコープを限定
-- ライブラリの違いを吸収
-  - 引数
-  - 戻り値
-  - 例外
+export type Context<T extends GetContext> = {
+  [K in keyof T]: T[K] extends () => infer C ? C : never;
+};
 
-## 実装の付け替え
-実装として、アプリケーションの中で付け替えるのであれば、DIコンテナではないはず。
-アプリケーションの機能として実装するのだから、DIはしてもコンテナで管理の必要はないのでは
+export type ContextFullFunction<T extends GetContext, F> = {
+  _context_setting?: T;
+  (context: Context<T>): F;
+};
 
-## テスト
-必要。ただし、主たる処理があり、サブな位置づけで
+// prettier-ignore
+export function setContext<T extends GetContext, F>(
+  func: ContextFullFunction<T, F>,
+  contextSetting: T
+): void {
+  func._context_setting = contextSetting;
+}
 
-## 関数での実装
-コードと利用例
+export function bindContext<T extends GetContext, F>(func: ContextFullFunction<T, F>): F {
+  if (!func._context_setting) {
+    throw new Error("programmer should set context!");
+  }
 
-## 特徴
-上記コードの特徴とpros/cons
+  // Object.entriesのスコープでundefinedがないという推論が消えてしまう
+  // なので別の変数に入れ直して、その変数で型を推論させてやる必要がある
+  const contextSetting = func._context_setting;
 
-## つらみ
-多重でDIする際には、生成知識がいる。
-いずれにしろ、生成知識というやつは、アプリケーションコード上に実装する。
-量が多ければ難しくなる。
+  const context = Object.entries(contextSetting).reduce((acc, [key, val]) => {
+    if (typeof val !== "function") {
+      throw new Error("programmer should set context function!");
+    }
 
-けれど、多重にするにしても、2レイヤ程度ではないか
-`ユースケース -> サービス -> リポジトリ`
+    if (!Object.hasOwn(contextSetting, key)) {
+      return acc;
+    }
 
-ただし、この構造では、ユースケースがリポジトリの何にアクセスしているか、知らない。
-外界に作用を引き起こす処理がなんなのか、ユースケース上で把握できるのは、よいこと。
+    return {
+      ...acc,
+      [key]: val(),
+    };
+  }, {}) as Context<T>; // FIXME as!
 
-関数なら、callbackを渡すことで、比較的かんたんにDIっぽい動きができるので、コード量もすくなくて済みやすい。
+  return func(context);
+}
+```
 
-### 難しい機能
-mapped typeをどこまで使うべきか。型のバリエーションに制限があるなら。任意の文字列ではなく、固定の文字列の羅列までならいいのでは
+利用イメージとしては、まずは以下のように設定する。
+
+```ts
+import { getDatabase } from "./databaseHelper";
+import { ContextFullFunction, setContext } from "./context";
+
+const GetUserContext = {
+  db: () => getDatabase(),
+} as const;
+
+export type GetUser = ContextFullFunction<
+  typeof getMasterContext,
+  (userId: string) => Promise<User>
+>;
+export const getUser: GetUser = ({ db }) => (userId) => db.getUser(userId);
+
+setContext(getUser, getUserContext);
+```
+
+上記を以下のように呼び出す
+
+```ts
+import { bindContext } from "./context";
+import { getUser } from './getUser';
+
+const userId = 1;
+const user = await bindContext(getUser)(userId);
+```
+
+DIコンテナは、大きく設定ファイルを記載するタイプと、対象classにアノテーションで依存先を表現するタイプがある。
+今回はアノテーションをつける形に近く、上記のコードで言えば`getUser`関数がdbに依存しているため、依存先のdbを今回のContextの仕組みを用いて、切替可能にしている。
+classにアノテーションをつける場合においても、依存classへの直接参照を記載するケースは少ないと思うが、この実装では直接記載する。
+したがって、直接依存しているように見えるため、厳密にはDIの機能ではないが、テスト自体は副作用を除外して書けるので、問題ないわけだ。
+
+TODO テストがちゃんとモックで動くか検証しておく。でないと嘘書くことになる。
+
+### 再帰的な解決
+実装が重くなるという点もそうだが、必要性からも再帰的な解決ができるようには実装しなかった。
+以下のコード例では、serviceとdbをbindしているが、`service.getUser`に`db.getUser`を渡している。
+基本的なDIにおいては、serviceの中にdbをbindした状態で、依存が解決されているはずだが、それはしていない。
+それが出来ないことを示している。
+
+```ts
+import { getDatabase } from "./databaseHelper";
+import { ContextFullFunction, setContext } from "./context";
+import { getUser } from "./userService";
+import { someComplexFunc } from "./complex";
+
+const getUserContext = {
+  db: () => getDatabase(),
+  service: () => ({ getUser }),
+  util: () => ({ someComplexFunc })
+} as const;
+
+export type GetUser = ContextFullFunction<
+  typeof getMasterContext,
+  (userId: string) => Promise<User>
+>;
+export const getUser: GetUser = ({ db, service }) => async (userId) => {
+  const complexResult = util.someComplexFunc();
+  return service.getUser(db.getUser, userId, complexResult);
+};
+
+setContext(getUser, getUserContext);
+```
+
+これは、そもそもclassを用いず、関数を使っているので、コンストラクタという概念がなく、コード量が増えすぎないので、必要性が薄いと考えたためだ。
+また、上記の名前空間が、直接`db.getUser`を使っていることがわかるので、何に依存しているかが明確だ。
+これを再帰的に解決しようと、serviceの中にbindしてしまうと、serviceの中で、どのようなIOが行われているか、コードを追う必要が出てくる。
+
+また、上記で依存を解決するものについては、別にIOな処理でなくても構わない。
+`someComplexFunc`は、IOのない処理だが、複雑でテスト時に再現するのが難しいという想定で書いている。
+そういった、そもそもIOがなくてモッキングする必要が少ないものであっても、任意の関数をbindできる実装にしている。
+
+## その他
+typescriptでmapped typeという機能を始めて利用した。
+型プログラミングというべき機能で、型によってロジックまで表現できてしまうという、非常に強力なものだ。ロジックが表現できれば、型によってテストがかなり不要な状態を望める。
+ただ、技術としては難し目であるし、わかりづらい。mappedタイプで足し算引き算などや、任意の文字列に対する操作なども表現可能だが、そこまでやってしまうのはやり過ぎに感じる。
+なにかしら、Mapped Typeを利用する際の制約を設けたほうがよいと感じた。
+
+出来てしまうこととしては、足し算、引き算、任意の文字列の操作などだが、任意の値を入力値、出力値として想定した型はあまりにも取れる値の幅が多すぎ、型としても抽象度が高すぎるので辞めたほうがよいと考える。
+これは例えば、1から100までの整数という制限や、特定の文字列のリストを型として捉え、それらに対してMapped Typeで導出するという使い方だ。
+これを1から100までの任意の数とすると、取れる幅が多すぎて手に負えない印象を持った。
 
 ## outro
+Next.jsを使ってみて、様々な学びがあった。
+今後に活かしていきたい。
 
-※Remixについては、最終的に採用しておらず、上記の認識がずれているかもしれない。気になった方にはご指摘いただきたい。
+また、Remixについて今回比較対象としたが、最終的に採用しておらず、記載内容が間違っているかもしれない。
+気になった方にはご指摘いただきたい。
 
