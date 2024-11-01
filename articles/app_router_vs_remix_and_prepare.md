@@ -49,8 +49,8 @@ https://nextjs.org/docs/app/api-reference/functions/fetch
 もちろんそれならば`nextFetch`みたいな関数を切り、それを使ってもらうように誘導できなかったのか？という疑問は当然残る。
 実害ではなく必要性を論点にすればネガティブな印象になる。
 
-詳細に迫るのはこのあたりで止めておくが、筆者の意見としてはそういう視点もあるのだから、Web標準じゃないからとNext.jsを嫌いすぎる必要はないだろうという意見だ。
-ただ、筆者としてもWeb標準を遵守しますというポリシーを掲げているフレームワークのほうが安心できる。将来にわたって混乱が少なそうなのはポリシーを掲げている側だろう。
+詳細に迫るのはこのあたりで止めておくが、筆者の意見としてはそういう視点もあるのだから、Web標準じゃないからとNext.jsを嫌いすぎる必要はないだろうということだ。
+ただ、Web標準を遵守しますというポリシーを掲げているフレームワークのほうが安心できる。将来にわたって混乱が少なそうなのはポリシーを掲げている側だろう。
 
 ### Path設計を不要にする技術
 Next.jsでもRemixでも、API Routesを実装し、そのPathにリクエストを送れば、サーバサイドの機能を利用できる。
@@ -87,6 +87,7 @@ RSCは、サーバサイドでしか実行できない。つまりクライア�
 今回の実装では、無限スクロールがあり、スクロール毎にリクエストしてデータ取得する必要があるが、RSCでは実現できないので、Path設計はどうしても必要になる。
 
 Remixのloaderはそういった制約はなく、クライアントサイドで実行している際にloader関数を呼び出すことができる。
+というか、そもそもがそういう機能である。
 https://remix-docs-ja.techtalk.jp/route/loader
 
 ただ、loaderの制約は、特定の画面に対して一つしか実装できないという点にある。
@@ -142,7 +143,7 @@ Next.jsの場合は、コンポーネントが動的pathを想定している場
 https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes#generating-static-params
 
 Remixはそういう機能はなく、ある意味割り切った実装だ。
-Next.jsの場合でも、ビルド時に解決が難しい動的pathの場合は、当然対応できない。
+Next.jsの場合でも、ビルド時に解決が難しい動的pathの場合は、当然対応できないのだ。
 
 ビルド時に解決が難しい動的pathの場合どうするかというと、404.htmlを使ってそちらでハンドリングする形となる。
 これは実質どちらも同様だ。
@@ -167,14 +168,14 @@ https://remix.run/resources/remix-auth
 基本的にはスキーマ設計というのはアプリケーションエンジニアのコントロール領域だという考えから、remix-authのほうがポジティブに感じる。
 ただ、IDプロバイダーからの情報や、セッション管理の情報などは、基本的な考え方があるはずで、たしかに理想的なスキーマは指定の形に落ち着くかもしれない。
 また、スキーマを改修する際も、拡張情報ならば別テーブルを用意したほうが理想的になる場面も多そうだ。
-つまりAuth.jsの指定するスキーマを改修することは想定しなくていい。
+つまりAuth.jsの指定するスキーマを改修することは基本的に想定しなくていい。
 
 最初はギョッとしたが、Auth.jsでも実害はなさそうだという印象を持った。
 ただ、このような特徴的なライブラリは、できる限りアプリケーションコードからは隔離し、できる限りVersion Upや、ライブラリ変更の影響を小さくしたい。
 基本的な機能としては、remix-authのほうが必要十分な印象だ。
 
 ### Next.js App Router vs Remixの結論
-Remixのほうができることが少なく、プログラマが自分で考えて実装しやすい。Web標準というポリシーも掲げ、わかりやすい作りになっていそうという印象を持った。
+Remixのほうができることが少なくわかりやすい。Web標準というポリシーも掲げて安心できそうという印象を持った。
 反面、Reactの最新機能である、RSCを使うのであればApp Router一択となる。
 今回は、好きなReactの最新機能にキャッチアップしたいという点が勝り、App Routerを採用した。
 散々いろいろ比較してきて総合してではなく、RSCという結論になってしまった。
@@ -186,12 +187,9 @@ https://user-first.ikyu.co.jp/entry/2023/12/15/093427
 ### 感想
 この記事は実装が終わったあとに書いているので、結論で終わりではなく、実際どうだったかの感想もある。
 
-述べてきた通り、App Routerの差別要素としてはRSCとなるが、RSCはSSRと比較してjsのバンドルサイズが小さいことがメリットして認識している。
-だが、筆者はキャリア的にtoBのシステムばかりであり、初回アクセス時の画面表示速度がKPIになりづらいプロジェクトばかりだったので、いまいち有り難みが実感できていない。
-
 当初の目的としてはRSCへの理解と、設計イメージをつけることだったが、それは学びとしては大きく、その点に関してはApp Routerを使ってみて良かった。
 Qwikというフレームワークがあるが、jsロジックは基本初期ロードに含まれずに、イベント発火時にロードする仕組みとなっている。
-JSXなシンタックスでかけるので、コンポーネントとjsロジックが同じ名前空間に存在するが、qwikはどうもコンポーネント部分と、jsロジックを分けてしまうようだ。
+JSXで書けるので、コンポーネントとjsロジックが同じ名前空間に存在するが、qwikはどうもコンポーネント部分と、jsロジックを分けてしまうようだ。
 当然、変数の参照が切れないように工夫はされているだろうが、分けてしまうとjsを実行するという感覚からは乖離してくる。
 
 jsを書いているという感覚こそReactの良さだと考えているが、App Routerもサーバサイドで実行されるコードと、クライアントサイドで実行されるコードを分けてしまう。
@@ -204,7 +202,7 @@ RSCとClient Componentの使い分けも、それほど迷わずに考えられ�
 すごいプログラマが設計したものというのは、いい出来になっているものだと感動した。
 
 そういう風に学びになり、あーこういうものだと理解できたからこそ、選べる技術選択もあるので、今回は良かったと考えている。
-Remixは、どちらかというとNext.jsより難易度の高い機能（つまりRSC）がないように見えた。次はRemixを使って学ぶのではなく、慣れてみたい。
+Remixは、どちらかというとNext.jsより難易度の高い機能（つまりRSC）がないように見えた。次はRemixを使って学ぶのではなく、慣れるまでを目標にしたい。
 
 ## 不足の機能
 App RouterとRemixを比較してきた。ここからは、App Routerを使う上で、補っておかなければならない機能について言及する。
@@ -252,6 +250,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // sessionをRSCで取得し、React Contextにbind
   const session = await auth();
   const userId = getUserId(session);
   const user = await getUserFromDB(userId);
@@ -269,7 +268,7 @@ export default async function RootLayout({
 ```
 
 サーバサイドでも、userテーブルの他に、特定のユーザを表現するテーブルを別途作り、そこにだけuser_idという紐づけのカラムを用意することで、Auth.jsのスキーマに触れないようにした。
-ちなみに実装としては、後述するリクエストハンドリングを行う部分に実装を差し込むので、コード例はそちらで示す。
+実装としては、後述するリクエストハンドリングを行う部分に実装を差し込むので、コード例はそちらで示す。
 
 ### リクエストハンドリング
 ここでリクエストハンドリングとは、受け取ったHTTP Requestを解釈、バリデーションし、処理に引き渡すこと。
@@ -338,6 +337,7 @@ const pathSchema = z.object({
 // 実際はもっと複雑な処理だが、呼び出すアプリケーションの機能
 const mainFunc = (userId: string, p: z.infer<pathSchema>) => ({ path: p.val });
 
+// API routesの実装はGET,POSTという名前でexportする
 export const GET = getRouteHandler(pathSchema, mainFunc);
 ```
 
@@ -449,7 +449,7 @@ export function bindContext<T extends GetContext, F>(func: ContextFullFunction<T
       ...acc,
       [key]: val(),
     };
-  }, {}) as Context<T>; // FIXME as!
+  }, {}) as Context<T>;
 
   return func(context);
 }
@@ -461,6 +461,7 @@ export function bindContext<T extends GetContext, F>(func: ContextFullFunction<T
 import { getDatabase } from "./databaseHelper";
 import { ContextFullFunction, setContext } from "./context";
 
+// 注入する依存の実態。直接記載するので依存があるように見えるが、bindはされていない
 const GetUserContext = {
   db: () => getDatabase(),
 } as const;
@@ -487,7 +488,7 @@ const user = await bindContext(getUser)(userId);
 DIコンテナは、大きく設定ファイルを記載するタイプと、対象classにアノテーションで依存先を表現するタイプがある。
 今回はアノテーションをつける形に近く、上記のコードで言えば`getUser`関数がdbに依存しているため、依存先のdbを今回のContextの仕組みを用いて、切替可能にしている。
 classにアノテーションをつける場合においても、依存classへの直接参照を記載するケースは少ないと思うが、この実装では直接記載する。
-したがって、直接依存しているように見えるため、厳密にはDIの機能ではないが、テスト自体は`db`変数を時前で用意すればよいので、副作用を除外して書ける。
+したがって、直接依存しているように見えるため、厳密にはDIの機能ではないが、テスト自体は`db`変数をモックすればよいので副作用を除外して書ける。
 
 TODO テストがちゃんとモックで動くか検証しておく。でないと嘘書くことになる。
 
@@ -513,9 +514,10 @@ export type GetUser = ContextFullFunction<
   typeof getMasterContext,
   (userId: string) => Promise<User>
 >;
-export const getUser: GetUser = ({ db, service }) => async (userId) => {
+export const getUser: GetUser = ({ db, service, util }) => async (userId) => {
   const complexResult = util.someComplexFunc();
-  return service.getUser(db.getUser, userId, complexResult); // db.getUserはcallbackとして実行時に与えているが、DIなら事前にbindする実装になるはず
+  // db.getUserはcallbackとして実行時に与えているが、DIなら事前にbindする実装になるはず
+  return service.getUser(db.getUser, userId, complexResult);
 };
 
 setContext(getUser, getUserContext);
@@ -524,11 +526,20 @@ setContext(getUser, getUserContext);
 上記の名前空間が、直接`db.getUser`を使っていることがわかるので、何に依存しているかが明確だ。
 これを再帰的に解決しようと、serviceの中にbindしてしまうと、serviceの中で、どのようなIOが行われているか、コードを追う必要が出てくる。
 この名前空間上で、何が行われているのか表現できたほうが、筆者としてはわかりやすく感じたため、このような実装になっている。
-このcallbackを呼び出すレイヤが、深いcall stackになっていくのであれば、逆に読みにくくなってしまうかもしれない。
+ただ、このcallbackを呼び出すのが、深いcall stackの内部ならば、逆に読みにくくなってしまうかもしれない。
 
 また、上記で依存を解決するものについては、別にIOな処理でなくても構わない。
 `someComplexFunc`は、IOのない処理だが、複雑でテスト時に再現するのが難しいという想定で書いている。
-そういった、そもそもIOがなくてモッキングする必要が少ないものであっても、任意の関数をbindできる実装にしている。
+そういった、そもそもIOがなくてモッキングする必要が少ないものであっても、その場で任意の関数をbindできる実装にしている。
+
+### 実装してみて
+Contextの実装においては、厳密には違うかもしれないが、初めていわゆる型レベルプログラミングというものを実装した。
+入力の型から、出力の型を導出する技術で、関数のロジックの表現ができてしまう。
+今回はそういったことは実装していないが、四則演算や、任意の文字列の整形なども、型として表現できるようだ。
+かなり強力な機能なので、何らかの制限が必要だろうなと感じた。
+
+制限としては、任意の数字や文字列ではなく、たとえば1-100までの整数や、特定の文字列だけ受け取れる。というような型の制限の上で、実装するべきだと考えている。
+ただ、ちょろっと触っただけなので、どういう場面で、どう効果的なのか、今後も着目していきたい。
 
 ## Outro
 App RouterとRemixを比較して、様々な対立軸で特徴があることを示した。
