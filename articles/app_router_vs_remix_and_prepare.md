@@ -3,7 +3,7 @@ title: "Next.js App Routerの利用と工夫と感想"
 emoji: "🙌"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ['Next.js', 'App Router', 'Auth.js']
-published: true
+published: false
 ---
 
 ## Intro
