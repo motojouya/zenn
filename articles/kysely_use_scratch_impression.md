@@ -1,12 +1,52 @@
 ---
-title: "Kyselyを使ってみた"
+title: "Kyselyの利用と工夫と感想"
 emoji: "🙌"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ['kysely', 'typescript']
+topics: ['kysely', 'TypeScript']
 published: false
 ---
 
-## intro
+## Intro
+TypeScriptのDBアクセスライブラリといえば、今はPrismaが第一に上がりそうだが、Kyselyを使ってみた。
+なぜKyselyにしたか、どう使ったか、使ってみてどうだったか記載していく。
+
+## DBアクセスライブラリの選定
+選定なんて大層な単語を使っているが、選ぶのは人の考え方次第だ。
+ただ、選ぶための基準となる考え方を、少し整理しておきたい。
+
+### DBアクセスライブラリの種類
+いわゆるパターンものなので、Pattern Of Enterprise Application Architectureをまず確認する。
+- Table Data Gateway
+- Row Data Gateway
+- Active Record
+- Data Mapper
+- Metadata Mapping
+- Query Object
+- Repository
+
+よくわからないのと、ほとんど生のSQLを書いて利用するというようなパターンが見当たらなかった。
+改めて整理すると、以下のように分類しておきたい。
+- Data Mapper
+  オブジェクトとDBのレコードをマッピングし利用する。
+  TypeScriptではPrismaのことをData Mapperと呼びたい
+- Query Object
+  QueryをJavaScriptから作っていくタイプのもの
+  TypeScriptでは今回取り上げるKyselyが該当する
+- SQL Template
+  SQLに近い構文を書いてPlace Holderを埋めていくタイプのもの
+  TypeScriptだとsqlcを指す
+- Active Record
+  Active RecordはData Mapperの派生で、マップしたオブジェクトにそのまま保存や取得メソッドが生えているタイプのもの
+
+Active RecordはData Mapperの派生であり、DBアクセスするという以上に様々な機能があり、DBアクセスの文脈だけでは言及がしづらい。
+基本的にはData Mapperと同じなので、そちらと同じとみなして取り扱う。
+
+良し悪しではなく、サンプルコードを見せてどういうものか、認識を揃えたほうがいいか
+
+### SQLの種類
+
+
+
 
 ## DBアクセスの種類
 - data record pattern?
