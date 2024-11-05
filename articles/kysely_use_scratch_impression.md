@@ -650,4 +650,5 @@ https://github.com/kysely-org/kysely/pull/962
 現在0.27.4だが、0.28.0入りそう
 
 ## Outro
-
+文中でPrismaの開発者が素晴らしいことは知っていると述べたが、これには一つ根拠がある。
+KyselyのメインコミッターであるIgal klebanovはPrismaプロジェクトにもコミットしている。Kyselyが素晴らしいと感じるならPrismaも素晴らしいとするのが道理だろう。
