@@ -308,6 +308,8 @@ SQLの実現難易度で設定した3.複雑でチューニング欲求が高ま
 また、筆者はSQLに慣れているので、特にRelationの設定や、Active Record Patternのような重厚な仕組みは不要で、すべてSQLで完結できる。
 SQLで完結できるので、宣言的に記載されたQuery Builderを見れば、どんなSQLを発行しているのか把握でき、コールドリーディング上も利点がある。
 
+TODO PrismaのRaw SQLが動的に組み立てるのに向いているか否かは知っておきたい
+
 ## 使い方
 
 以降では、Kyselyの使い方や、使う際の工夫について記載していく。
@@ -316,12 +318,67 @@ SQLで完結できるので、宣言的に記載されたQuery Builderを見れ�
 どちらかというと、工夫した内容や、仕様上迷った部分などに言及していく。
 
 ### 仕組み
-1. sql object
-2. 変換
+Kyselyを使う上で、ちょくちょ迷うことがあった。迷わないようにするために、Kyselyの仕組みをある程度知っていたほうがいいだろう。
+
+Kyselyの内部に注目すると、以下のステップで実行されていることがわかる。
+1. Query Builderで指定
+2. Query BuilderからPrepared Statementに変換
 3. 実行
 
-型定義の仕組み
-select -> from -> whereではかけない。from -> (select or where)で書くが、これは型を効かせるため。
+1のQuery Builderで指定する部分は当然アプリケーションを書くプログラマがやる部分だ。Query Builderで指定していく。
+2,3は、`kysely#executeQuery`の実装を見るとわかるのだが、compileされてPrepared Statementに変換され、executeされる。
+https://github.com/kysely-org/kysely/blob/master/src/kysely.ts#L377
+
+execute関数は他にもあるので`kysely#executeQuery`だけではないが、他でも同様のことをやっている。
+
+プログラマが最も意識すべきは、1で組み上げるQuery Builderがどうなっているかだろう。
+大前提として、以下のページに示されている通り、スキーマを表現する型を用意して置かなければならない。
+https://kysely.dev/docs/getting-started#types
+
+ただ、自分で書かなくてもgeneratorツールがあるので、Migrationと二重管理になることはないだろう。
+これで各テーブルの型が手に入り、これがすべての型の基になる。
+
+以下は、特定のユーザが投稿できるか、また画像をアップロードできるかの権限を管理するRoleテーブルとJoinするクエリだ。
+内容を見ると、`From -> select -> where`の順に書かれているのがわかる。select句、where句の順序はどちらでもいいが、kyselyではfrom句は最初に定義しなくてはならない。
+これは、from句で定義したaliasの型定義を利用するためだ。以降の解説はコードコメントを参照してほしい。
+
+```ts
+import { Kysely } from "kysely";
+import { Database } from "./databaseType";
+
+type UserWithRole = Omit<Database['user'], 'name'> & {
+  role_name: string;
+  role_post: boolean;
+  role_post_file: boolean;
+}
+
+export type GetUser = (db: Kysely<Database>) => (userId: string) => Promise<UserWithRole[]>;
+export const getUser: GetUser = (db) => async (userId) => {
+
+  return db
+    .selectFrom("user as u") // Database型の内部にあるuser型を、uという名前で再定義している
+    .innerJoin("role as r", "u.role_id", "r.role_id") // Database['role'] -> Database['r'] をし、u.role_id, r.role_idがどちらも同じ型であることを型チェック
+    .select([
+      "u.user_id as user_id", // u型はuser型から引き継いでuser_idというpropertyがあることを知っている
+      "u.name as user_name", // u.name型は、クエリの結果(仮にResultとするが)、Result.user_nameに引き継がれる
+      "u.created_date as created_date",
+      "u.updated_date as updated_date",
+      "r.name as role_name",
+      "r.post as role_post",
+      "r.post_file as role_post_file",
+    ])
+    .where("u.user_id", "=", userId) // '=' も内部的にリテラル型で定義されており、u.user_idと変数userIdが同じ型であることを検査している
+    .execute();
+};
+```
+
+型の整合性を保ったり、型情報からproperty名を提案したりというのが、上記の仕組みを持って実現されている。
+Kyselyのトップページの映像は、こういったタネがある。
+https://kysely.dev/
+
+ちなみにテーブル指定する際にaliasを使っている部分の型定義がどうなっているか気になる方もいるかもしれない。
+以下の`AnyAliasedTable<DB>`型で分割されて管理されている。
+https://github.com/kysely-org/kysely/blob/master/src/parser/table-parser.ts#L28
 
 ### Utility
 1.単一のテーブルに対するPrimary KeyあるいはUnique Keyによる操作が、Query Builderでは冗長になってしまうことはすでに述べた。
@@ -361,10 +418,6 @@ export function create(db: Kysely<Database>) {
 }
 
 export function read(db: Kysely<Database>) {
-  // return async function <T extends keyof Database & string>(
-  //   tableName: T,
-  //   criteria: Partial<Selectable<Database[T]>>
-  // ): Promise<Selectable<Database[T]>[]> {
   return async function <T extends keyof Database & string>(
     tableName: T,
     criteria: FilterObject<Database, T>,
@@ -380,11 +433,6 @@ export function read(db: Kysely<Database>) {
 }
 
 export function update(db: Kysely<Database>) {
-  // return async function <T extends keyof Database & string>(
-  //   tableName: T,
-  //   criteria: Partial<Selectable<Database[T]>>,
-  //   updateWith: Updateable<Database[T]>
-  // ): Promise<Database[T][]> {
   return async function <T extends keyof Database & string>(
     tableName: T,
     criteria: FilterObject<Database, T>,
@@ -403,10 +451,6 @@ export function update(db: Kysely<Database>) {
 }
 
 export function destroy(db: Kysely<Database>) {
-  // return async function <T extends keyof Database & string>(
-  //   tableName: T,
-  //   criteria: Partial<Selectable<Database[T]>>
-  // ): Promise<Selectable<Database[T]>[]> {
   return async function <T extends keyof Database & string>(
     tableName: T,
     criteria: FilterObject<Database, T>,
@@ -450,6 +494,8 @@ await db
 このあたりを強く意識するのであれば、Query BuilderではなくJSON Settingを使うべきだろう。
 
 ### SQLの分割管理
+TODO Kyselyで分割管理するときの型記述の煩雑さがインパクト薄い。コード例を示したい
+
 Utilityでの解説を見て感じた読者もいるかもしれないが、KyselyでSQLを部分的に管理するのは、骨が折れそうな印象だ。
 
 例えば、以下のようなSQLを想定する。
@@ -534,9 +580,42 @@ export async function getUser(user_id: string): [User, Post[]] {
 getDatabase関数の実装については、トランザクションへのケアもあるので、次のパートで言及する。
 
 ### Transaction管理
+Transaction管理でよくあるのは、middlewareあるいはAOPなど、何らかの関数をラップして、トランザクションを管理するというものが多い。
+ただ、これでは当該関数の最初から最後までをTransactionとしてしまい、細かな管理が難しくなる。
+
+昔はファイルと言えばサーバ上に保存したものだが、現代でクラウド上で保存するならオブジェクトストレージになるだろう。
+サービスも多様化し、外部APIを叩いて機能を実現しているものも少なくない。
+アプリケーションの外にでて、IOがあるのはデータベースだけではない。より細かなTransaction管理が過去よりも求められるようになっているはずだ。
+
+筆者は今回、アプリケーションコードの中で、プログラマが任意のタイミングでTransactionを開ける関数を用意した。
+使用感としては以下のような感じだ。
 
 ```ts
-import Sqlite from "better-sqlite3";
+import { getDatabase } from "./database";
+import { getUser } from './query/getUser';
+import { updateUser } from './query/updateUser';
+
+export async function updateUser(user_id: string): User {
+
+  const db = getDatabase({ getUser }, { updateUser });
+
+  const user = db.getUser(user_id);
+
+  db.transact(trx => {
+    trx.updateUser(user_id, { ... });
+  });
+
+  return db.getUser(user_id);
+};
+```
+
+上記コードでは`db`オブジェクトが`transact`関数を持っているわけだが、`getDatabase`の第一引数はTransactionの外、第二引数はTransactionの内側で実行されるものだ。
+前段で紹介したファイル名前空間ごとに分けたクエリをまとめる機能も持っているので、オブジェクトにまとめて引き渡す形を取る。
+
+長いが、`getDatabase`関数の実装を示す。
+
+```ts
+import Sqlite from "better-sqlite3"; // コード例はsqlite3だが基本的にSQLインタフェースなら何でも動く
 import { Kysely, SqliteDialect } from "kysely";
 import { Database } from "./databaseType"; // Kyselyを利用する上では、スキーマ定義を型として定義する必要がある（generationツールもある）。その型定義を参照している
 
@@ -559,7 +638,6 @@ export const getKysely: GetKysely = () => {
 
 export type Transact<T extends GetQuery> = <R>(callback: (trx: Query<T>) => Promise<R>) => Promise<R>;
 
-// T extends Record<never, never> だと普通に成立するので逆にしておく
 export type DB<Q extends GetQuery, T extends GetQuery> = Query<Q> & {
   transact: Record<never, never> extends T ? undefined : Transact<T>;
 };
@@ -587,7 +665,7 @@ export function getDatabase<Q extends GetQuery, T extends GetQuery>(
     };
   }
 
-  return dbAccess as DB<Q, T>; // FIXME as!
+  return dbAccess as DB<Q, T>;
 }
 
 function getTransact<T extends GetQuery>(db: Kysely<Database>, queries: T): Transact<T> {
@@ -625,30 +703,25 @@ function getQueries<T extends GetQuery>(db: Kysely<Database>, queries: T, acc: o
 }
 ```
 
-```ts
-import { getDatabase } from "./database";
-import { getUser } from './query/getUser';
-import { updateUser } from './query/updateUser';
+`Kysely.transaction.execute`関数は内部的に、例外をcatchしたときにRollbackを行う形になっている。
+最もオーソドックスな方法ではあるが、最近はRustなどの影響を受けてエラーを例外ではなく、値としてReturnしたいというプログラマもいるはずだ。
+そういった意味では、Rollbackの方法が例外だけでは機能不足な印象がある。
 
-export async function updateUser(user_id: string): User {
-
-  const db = getDatabase({ getUser }, { updateUser });
-
-  const user = db.getUser(user_id);
-
-  db.transact(trx => {
-    trx.updateUser(user_id, { ... });
-  });
-
-  return db.getUser(user_id);
-};
-```
-
-transaction管理が例外のみ
-早く入ってほしい
+これは実は今後以下のPRでケアされるはずだ。
 https://github.com/kysely-org/kysely/pull/962
-現在0.27.4だが、0.28.0入りそう
+
+Kyselyは記事時点で0.27.4だが、0.28に入りそうだ。
+上記PRは、Rollbackだけではなくsave pointにも対応しているようなので、より細かな制御が行えるだろう。
+
+### 迷ったところ
+Raw SQLを作る際にsql`select * from ${table} where id = ${id}`と指定できる。この中に値を埋め込む際には迷った。
+Raw SQLの場合、`${}`で囲まれた部分は値として解釈される。
+
+TODO あれ？カラムとして解釈されて困るとかじゃないっけ。このあたりなんだったっけ
+
+sql変数には、val、valueというのがあるのでそれを使う結論だったような
 
 ## Outro
-文中でPrismaの開発者が素晴らしいことは知っていると述べたが、これには一つ根拠がある。
-KyselyのメインコミッターであるIgal klebanovはPrismaプロジェクトにもコミットしている。Kyselyが素晴らしいと感じるならPrismaも素晴らしいとするのが道理だろう。
+
+
+
