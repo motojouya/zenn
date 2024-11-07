@@ -492,41 +492,154 @@ await db
 このあたりを強く意識するのであれば、Query BuilderではなくJSON Settingを使うべきだろう。
 
 ### SQLの分割管理
-TODO Kyselyで分割管理するときの型記述の煩雑さがインパクト薄い。コード例を示したい
-
 Utilityでの解説を見て感じた読者もいるかもしれないが、KyselyでSQLを部分的に管理するのは、骨が折れそうな印象だ。
+これを例を持って示しつつ、筆者はむしろ良さだと考えているので、それを説明する。
 
 例えば、以下のようなSQLを想定する。
 
 ```sql
-select posts.title
-  from posts
- inner join comments
-         on posts.id = comments.post_id
- where comments.user_id = ?
+select p.contents
+  from post as p
+ inner join comment as c
+         on p.post_id = c.post_id
+ where c.user_id = ?
      ;
 ```
 
 パフォーマンス的な問題が出やすいため筆者は推奨しないが、このsqlは実はこうも表現できる。
 
 ```sql
-select title
-  from posts
- where id in (select post_id from comments where user_id = ?)
+select p.contents
+  from post as p
+ where p.post_id in (select c.post_id from comment as c where c.user_id = ?)
      ;
 ```
 
 上記は推奨しないが、SQLの以下の部分が分割して管理できそうな印象には同意してもらえると思う。
-`select post_id from comments where user_id = ?`
+`select c.post_id from comment as c where c.user_id = ?`
 
 TypeScriptで管理しているコード上も、上記のように分割して管理したいものもあるかもしれない。
 だが、Kyselyでは難しい印象を持った。
 
-それは、Utilityの説明でも触れたように、テーブル名などの情報が揃っていないと、型推論が決定的にならないため、あるいは型定義が煩雑になるためだ。
-Kysely内部の型はかなりしっかりexportされているので、部分的に分割したKyselyのオブジェクトも型を表現できるとは思うが、記載は冗長になりそうだ。
-これはKyselyが、SQLの型をしっかり管理し、テーブルだけではなく、テーブルをsql上で部分的にpick upしたview的なものですら型として管理しているためだ。
+例を示そう。以下は、最初のパフォーマンス的に問題ないものだ。
+
+```ts
+import { Kysely, SelectQueryBuilder } from "kysely";
+import { Database } from "@/database/type";
+
+type Post = {
+  post_user_id: string;
+  post_contents: string;
+}
+
+export type GetPost = (db: Kysely<Database>) => (userId: string) => Promise<Post[]>;
+export const getPost: GetPost = (db) => async (userId) => {
+  return await db
+    .selectFrom("post as p")
+    .innerJoin("comment as c", "p.post_id", "c.post_id")
+    .select((eb) => [
+      "p.user_id as post_user_id",
+      "p.contents as post_contents",
+    ])
+    .where("p.deleted_date", "is", null)
+    .where("c.deleted_date", "is", null)
+    .where("c.user_id", "=", userId)
+    .orderBy(["p.posted_date desc"])
+    .execute();
+};
+```
+
+これは、こう書き換えられる。
+
+```ts
+import { Kysely, SelectQueryBuilder } from "kysely";
+
+// ... コード省略
+
+export const getPost: GetPost = (db) => async (userId) => {
+  return await db
+    .selectFrom("post as p")
+    .select((eb) => [
+      "p.user_id as post_user_id",
+      "p.contents as post_contents",
+    ])
+    .where("p.deleted_date", "is", null)
+    .where(
+      "p.post_id",
+      "in",
+      getCommentId(db).where("c.user_id", "=", userId)
+    )
+    .orderBy(["p.posted_date desc"])
+    .execute();
+};
+
+type GetCommentId = (db: Kysely<Database>) => SelectQueryBuilder<Database & { c: Database['comment']; }, "c", { post_id: number; }>;
+const getCommentId: GetCommentId = (db) => {
+  return db
+    .selectFrom('comment as c')
+    .where("c.deleted_date", "is", null)
+    .select(['c.post_id as post_id']);
+};
+```
+
+見てもらってわかるように`GetCommentId`の型がやたら複雑だ。これは最も簡単な例なのでこの程度だが、joinするテーブルが増え、selectするカラムが増えすると、もっとすごいものを書く必要がある。
+もちろん型を書いてもいいのだが、多少重複コードがあっても`getCommentId`を切り出さずに、以下のように一息で書きたいという気持ちにさせてくれる。
+
+```ts
+export const getPost: GetPost = (db) => async (userId) => {
+  return await db
+    .selectFrom("post as p")
+    .select((eb) => [
+      "p.user_id as post_user_id",
+      "p.contents as post_contents",
+    ])
+    .where("p.deleted_date", "is", null)
+    .where(
+      "p.post_id",
+      "in",
+      eb => eb
+        .selectFrom('comment as c')
+        .where("c.user_id", "=", userId)
+        .where("c.deleted_date", "is", null)
+        .select(['c.post_id as post_id'])
+    )
+    .orderBy(["p.posted_date desc"])
+    .execute();
+};
+```
 
 ただ、筆者個人の意見としては、これは逆に良さでもあると考える。
+
+まず、上記のように`in`句を使った絞り込みはパフォーマンス上の問題が出やすく、基本的にはjoinでやったほうがいい場面が多いはずだ。
+そもそも部分的に切り出しづらい構造のsqlのほうが、よいsqlになる。
+
+第二に
+TODO viewのパフォーマンスの例を出して説明できそう。
+
+つまり、sqlを分割管理するのはコード上は重複コードをなくせてメリットがあるが、sql上は問題が発生し易い箇所だと言うことだ。
+何度も参照されるようなsqlは確かに、別の関数に切り出しておいたほうがいいかもしれない。
+ただ、筆者は経験上、多少重複コードがあったとしても、sqlは切り出さないことが多い。これはそもそも重複箇所が1,2箇所しかないので、コスパが悪いというのが1点。
+
+次に、そもそもsqlというのは関数と構造上違うということだ。
+jsの関数は、独立して処理が終わり、呼び出し元に帰る。つまり、呼び出される側 -> 呼び出し元という順番が存在する。
+しかしsqlというのは、sql文全体をオプティマイザが評価し、そこから最適な実行計画を呼び出すので、部分的に切り出したsqlが実行されたあとに、呼び出し側が実行されるわけではない。そしてそもそもそういう構造だとsqlはパフォーマンスが悪化するはずだ。
+したがって、オプティマイザ視点では、sqlを部分的に評価して組み合わせるのではなく、全体を見てトップダウンで評価をくださなければならない。そしてプログラマは、オプティマイザ視点を持つべきだ。JSON Settingではなくsqlに近いQuery Builderで書くなら、そのメリットも大きいはずだ。
+
+なので、そもそも分割しづらい構造を提供するkyselyは、sqlの分割を実質推奨しない形となり、よいコードになるのでは？という考えから、これはある意味ではkyselyの良さであると考える。
+
+ただし、この章の最後に、注釈だけつけておく。
+現代においてはRDBのオプティマイザが進化し、`in`句やviewを利用したクエリのパフォーマンスも問題ない可能性もある。
+ただ、すべてのケースでオプティマイザが理想的な実行計画を出すという前提でsqlを書くのではなく、なるべくオプティマイザにわかりやすいsqlのほうがよいというポリシーを持っているので、上記のような説明をした。
+RDB内部の進化については、筆者がキャッチアップできていない領域なので、間違っていたら指摘してほしい。
+
+
+
+
+
+
+
+ただ、joinする対象のviewを、できれば外側のテーブルを集約したものとして表現したいが、例が思いつかない。
+
 これはまだ論理的に説明できるほど整理しているものではなく、感覚的な意見だが、SQLを分割管理するのは、そもそも非常に難しい。
 これは、上記のコードを以下のように表現すると、ヒントがあるように思う。
 
