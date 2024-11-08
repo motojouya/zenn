@@ -58,5 +58,28 @@ published: false
 試したPR
 https://github.com/motojouya/croaker/pull/42
 
+## neverthrow
+
+補うコード。これがあればfp-tsと同等のことができそう
+```ts
+const constant = (key, func) => (carry) => {
+
+  if (carry.isError) {
+    return carry;
+  }
+
+  const result = func(carry);
+
+  if (result.isError) {
+    return result;
+  }
+
+  return new Success({
+    ...carry,
+    [key]: result.result,
+  });
+}
+```
+
 ## outro
 
