@@ -3,7 +3,7 @@ title: "Kyselyの利用と工夫と感想"
 emoji: "🙌"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ['Kysely', 'TypeScript']
-published: false
+published: true
 ---
 
 ## Intro
@@ -404,7 +404,7 @@ import {
   FilterObject,
   sql,
 } from "kysely";
-import { Database } from "@/database/type";
+import { Database } from "databaseType";
 
 export const getSqlNow = (db: Kysely<Database>) => () => db.fn("datetime", [sql`'now'`, sql`'localtime'`]);
 
@@ -528,7 +528,7 @@ TypeScriptで管理しているコード上も、上記のように分割して�
 
 ```ts
 import { Kysely, SelectQueryBuilder } from "kysely";
-import { Database } from "@/database/type";
+import { Database } from "databaseType";
 
 type Post = {
   post_user_id: string;
