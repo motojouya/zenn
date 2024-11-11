@@ -14,6 +14,9 @@ TypeScriptというよりJavaScriptで機能的に提供されているエラー
 
 それらを整理し、エラーハンドリングをどのように書くべきか、考える補助になる記事をまとめて置きたい。
 
+TODO callbackで解決するパターンもあるっぽい。メジャーなイメージないけど
+https://typescript-jp.gitbook.io/deep-dive/type-system/exceptions#anatahaerwosursuruhaarimasen
+
 # 課題
 JavaScriptで機能的に提供されているエラーハンドリングはtry catch文であることはすでに述べた。
 これがTypeScriptになり、TypeScriptが提供する型チェックの網をすり抜けてしまう仕様のため、どうしてもTypeScriptの機能を活かせない。
