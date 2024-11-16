@@ -960,9 +960,7 @@ Railway Oriented Styleを行うには、いくつかutility関数が必要であ
 
 ただ、上記のライブラリの利用例にはいる前に、基本的な考え方は抑えておきたい。
 
-エラーの表現は自由だが、エラーはreturnし、returnするのはobjectであるようだ。
-もともと関数型プログラミングパラダイムの文脈のものなので、メソッドを実装できるclassよりも、データ構造のみを表現するobjectのほうが相性がよいのだろう。
-
+エラーの表現は自由だが、エラーはreturnし、returnするのはobjectで記載されている例が多いように思う。
 以下のように表現し、returnする。例ではエラーは`Error class`で表現する。
 ```ts
 type Failure<E> = {
@@ -1021,7 +1019,7 @@ function <E1, A1, E2, A2>pipe(func: (data: A1) => Result<E1 | E2, A2>) {
 
 function callerFunc(val: number): Result<RangeError, number> {
   const divided = pipe((calcVal) => divide(calcVal, 2))(val);
-  const powed = pipe((calcVal) => pow(calcVal, 2))(divided);
+  const powed = pipe((calcVal) => pow(calcVal, 0.5))(divided);
   return powed;
 }
 ```
@@ -1040,23 +1038,30 @@ divideでもpowでも計算ができれば、正常な値がcallerFuncの返り�
 #### Neverthrow
 
 補うコード。これがあればfp-tsと同等のことができそう
+
 ```ts
-const constant = (key, func) => (carry) => {
+function <E1, A1, E2, A2>bind(key: string, func: (data: A1) => Result<E1 | E2, A2>) {
 
-  if (carry.isError) {
-    return carry;
+  return function<>(beforeResult: Result<E1, A1>): Result<E1 | E2, A2> {
+
+    if (!beforeResult.isOk) {
+      return beforeResult;
+    }
+    const beforeData = beforeResult.data;
+
+    const newResult = func(beforeData);
+    if (!newResult.isOk) {
+      return newResult;
+    }
+
+    return {
+      isOk: true,
+      data: {
+        ...beforeData,
+        [key]: newResult.data,
+      },
+    };
   }
-
-  const result = func(carry);
-
-  if (result.isError) {
-    return result;
-  }
-
-  return new Success({
-    ...carry,
-    [key]: result.result,
-  });
 }
 ```
 
@@ -1069,7 +1074,7 @@ Golang Styleとfp-tsの比較
 試したPR
 https://github.com/motojouya/croaker/pull/42
 
-# 利用
+## 利用
 組み合わせて使う。
 筆者は、こういうときはこう。こういうときはこう。というような感じ。webアプリ。
 
