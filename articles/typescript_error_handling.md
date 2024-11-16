@@ -446,12 +446,11 @@ throwするのはエラーだけだが、returnはエラーではなく正常な
 returnする際の値の表現をどうするかは、検討しておくべきだろう。
 
 - boolean
-- union
-- tuple
+- Union
+- Tuple
 - object
 - class
-- optional/maybe
-- result/either
+- Promise
 
 数が多いので、事前に列挙しておく。実用的にはunion,object,classあたりだろう。
 
@@ -490,6 +489,8 @@ const result = divide(12, 3);
 if (result === ERROR_ZERO_DIVIDE) {
   console.log('Zero Divide!');
 }
+
+console.log(result + 10); // numberとして解釈される
 ```
 
 ### Tuple
@@ -658,13 +659,65 @@ function divide(left: number, right: number): Result<ErrorString, number> {
 ```ts
 const result = divide(12, 3);
 if (!result.hasError) {
-  console.log(result.data + 10);
+  console.log(result.data + 10); // TODO type guard 効く？
 }
 ```
 
 上記の例は、継承などは利用していないが、super classで共通のメソッドを用意してもよい。
 ただ、objectの例でも、当該のobjectを引数に受け取る関数を用意すれば、構造的には同じことができる。
 もちろん、読んだ感触は違ってくるが、そういった関数、メソッドについては、大きな違いがあるわけではないので、ここでは言及しない。
+
+### Promise
+Promise型を返すという方法もある。
+
+```ts
+const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
+type ErrorString = typeof ERROR_ZERO_DIVIDE;
+
+function divide(left: number, right: number): Promise<number> {
+  if (left === 0) {
+    return Promise.reject(ERROR_ZERO_DIVIDE);
+  }
+
+  return Promise.resolve(left / right);
+}
+```
+
+ただ、この場合は、エラーの型は消える。関数のシグネチャにも現れていないだろう。
+以下のように、catch関数の中で、type guardを更に追加で入れてやらないと型判定されない。
+
+```ts
+const result = divide(12, 3);
+
+result
+  .then(calcResult => console.log(calcResult + 10))
+  .catch(err => {
+    if (err === ERROR_ZERO_DIVIDE) {
+       console.log('zero divide!');
+    } else {
+       console.log('到達不能');
+    }
+  });
+```
+
+Promiseはtry catch節で扱うこともできる。エラーの型が消えるのは同じだ。
+TODO 要確認
+
+```ts
+const result = divide(12, 3);
+
+try {
+  const awaitedResult = await result;
+  console.log(awaitedResult + 10);
+
+} catch (e) {
+  if (e === ERROR_ZERO_DIVIDE) {
+     console.log('zero divide!');
+  } else {
+     console.log('到達不能');
+  }
+}
+```
 
 ## エラーの発生とハンドリングの場所
 
@@ -699,8 +752,8 @@ if (!result.hasError) {
 エラーにはそれらの文脈を伴ってエスカレーションされるべきなので、エラーを変換するケースもある。
 
 ### フィードバック
-これはエラーを利用者に表示するということだ。
-表示の内容は、プログラム内部の事情など関係ないので、利用者にわかりやすいメッセージに変換することになる。
+これはエラーを利用者に表示するということだが、よりプログラマ視点で、呼び出し元の関数にエラーを返すこともフィードバックと言えるだろう。
+また利用者に表示する内容は、プログラム内部の事情など関係ないので、利用者にわかりやすいメッセージに変換することになる。
 
 ### ログ
 エラーが発生した際にログに記録しておき、開発者が確認することで不具合に気づきやすくなる。
@@ -712,29 +765,279 @@ if (!result.hasError) {
 今まで、エラーハンドリングの要素について、様々な状況を検討してきた。
 それらの要素には相性があり、お互いを活かせるやり方として、要素を組み合わせたCoding Styleがあるはずだ。
 
-筆者が考えたもの（つまり検討が浅い）ものもあるが、3つのstyleを挙げてみる。挙げた3つ以外にも、相性のよいやり方があるかもしれないので、読者にも検討してみてほしい。
+筆者が考えたもの（つまり検討が浅い）ものもあるが、4つのstyleを挙げてみる。挙げた4つ以外にも、相性のよいやり方があるかもしれないので、読者にも検討してみてほしい。
 
 ### Try Catch Style
+最も基本的なやり方だろう。
+`Error class`をエラーとしてthrowして、try catch文でハンドリングする。
+複数のコールスタックを飛び越えて行くので、途中でcatchする必要はない。
+
+```ts
+function divide(left: number, right: number): number {
+  if (right === 0) {
+    throw new RangeError('zero divide!');
+  }
+
+  return left / right;
+}
+
+function middleFunc(first: number, second: number): number {
+
+  // なんらかの処理
+
+  const result = divide(first, second);
+
+  // なんらかの処理
+
+  return result;
+}
+
+function topLevelFunc() {
+  try {
+    const result = middleFunc(12, 2);
+    console.log(result);
+  } catch (e) {
+    if (e instanceof RangeError) {
+       console.log(e.message);
+       return;
+    }
+    if (e instanceof Error) {
+       console.log(e.message);
+       return;
+    }
+    console.log('something happened!');
+  }
+}
+```
+
+これはすでに述べた通り、エラーの型が表現されていないので、実装を読まなければ型がわからない。
+またcatch節でそうやって調べた型でType Guardしなければ、messageすら読めないというところだ。
+
+### Promise Chain Style
+こちらも型が効かないパターンではあるが、Promiseで扱うこともできる。
+エラーの表現は何でもよいのだが、一旦objectで表現する。エラーはreturnし、returnされるのはPromiseだ。
+
+```ts
+type DivisionError = {
+  left: number;
+  right: number;
+  message: string;
+};
+
+function isDivisionError(err: any) err is DivisionError {
+  if (!err || typeof err !== 'object') {
+    return false;
+  }
+
+  return err.left === 'number' && err.right === 'number' && err.message === 'string';
+}
+
+function divide(left: number, right: number): Promise<number> {
+  if (right === 0) {
+    return Promise.reject({
+      left,
+      right,
+      message: 'zero divide!',
+    });
+  }
+
+  return Promise.resolve(left / right);
+}
+
+function middleFunc(first: number, second: number): Promise<number> {
+
+  // なんらかの処理
+
+  const result = divide(first, second);
+  return result.then(num => {
+
+    // なんらかの処理
+
+    return num;
+  });
+}
+
+function topLevelFunc() {
+  const result = middleFunc(12, 2);
+  result
+    .then(num => {
+      console.log(num);
+    })
+    .catch(e => {
+      if (isDivisionError(e)) {
+         console.log(e.message);
+         return;
+      }
+      console.log('something happened!');
+    });
+}
+```
+
+Try Catch Styleと同様、エラーの型は消えるので、type guardで検査してやる必要がある。
+また、Chainでつなぐと、中間のmiddleFuncもPromiseを意識しなくてはならなくなる。
+
+これなら、return表現をPromiseにしたとしてもtry catch文で処理するほうが現実的だろう。
+これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRail Oriented Styleの説明のためにも挙げておく。
 
 ###  Golang Style
+Golang Styleは筆者が勝手に呼んでいるものなので、他にいい命名があったら教えてほしい。
+Go言語は、エラーをreturnすると聞いたのでそう呼んでいるが、returnするのはUnion型なので、多値というイメージとは違う。
+Early Return Styleと呼ぼうかとも思ったが、Early ReturnはStyleというよりTechniqueというイメージなので、エラーの表現や返し方を含めて呼ぶにはふさわしくない。
+
+実装は、エラーはclass、あるいは`Error class`で表現してreturnする。returnするのはUnion型だ。
+
+```ts
+class DivisionError {
+  constructor(
+    public readonly left: number,
+    public readonly right: number,
+    public readonly message: string,
+  ) {}
+};
+
+function divide(left: number, right: number): number | DivisionError {
+  if (right === 0) {
+    return new DivisionError(left, right, 'zero divide!');
+  }
+
+  return left / right;
+}
+
+function middleFunc(first: number, second: number): number | DivisionError {
+
+  // なんらかの処理
+
+  const result = divide(first, second);
+  if (result instanceof DivisionError) {
+    // もし必要であれば、middleFuncの文脈に沿ったエラーに変換してreturnする
+    return result;
+  }
+
+  // なんらかの処理
+
+  return result;
+}
+
+function topLevelFunc() {
+
+  const result = middleFunc(12, 2);
+
+  if (result instanceof DivisionError) {
+    console.log(result.message);
+    return;
+
+  } else {
+    console.log(result);
+  }
+}
+```
+
+察しのよい読者は気づいていると思うが、筆者がおすすめするやり方だ。なんならこの長い記事は、この節のためにあると言ってもよい。
+middleFuncのようなコールスタックの途中の関数であっても、エラーを意識してif分岐を書かなくてはならないのは面倒だが、確実に型が反映されるので、topLevelFuncでもエラー型を意識できる。
+TypeScript的にUnion型は特徴的だが、エラーをreturnしている以外は至ってなんの変哲もないJavaScriptコードになる。
+
+エラーをclassで表現しているのは、instanceofでtype guardが効くためだ。わざわざユーザ定義のtype guard関数を用意しなくてもよい。
+蛇足だが、筆者はTypeScriptのコーディングにおいて、ほとんどclassは利用しないのだが、このエラーハンドリングにおいては、TypeScriptでもJavaScriptでも型表現として利用できるclassは便利に使っている。
+
+`Error class`をエラーとして用いてもよく、だめな理由はないのだが、筆者は通常のclassに独自のsuper classを定義して継承して利用している。
+後述するが、Try Catch Styleはどうしても併用する必要があり、必然的に`Error class`はそちらで利用したいので区別するためだ。
+区別のために、継承ツリー上に目印になるようなsuper classを定義してもよいが、わざわざ`Error class`を継承する理由もない。
 
 ###  Railway Oriented Style
+こちらについては以下の記事に詳しい。
+https://buildersbox.corp-sansan.com/entry/2024/03/26/110000
 
-## railway oriented styleにできるライブラリ
+Domain Modeling Made Functionalという書籍でRailway Oriented Programmingという名前で紹介されている。
+筆者は恥ずかしながら未読だが、このやり方については手元でコードを書いて試したので、説明するぐらいは問題ないだろう。
 
-### Promise
-- thenでつなぐ
-- 非同期実行の場合でも型が消えるのは同じ。なのでrejectには型がつかない
+Railway Oriented Programmingと銘打つからにはかなり特徴的であり、Programming Paradigmとして、コードベース全体に浸透させるべきものかもしれない。
+ただここの節では、Styleの一例として切り出せるもののみを上記の書籍からピックアップして、Railway Oriented Styleと呼んで紹介する。このスコープまでなら実際にコードベースの一部にのみ適用して利用することも可能だ。
 
-### fp-ts
+Railway Oriented Styleを行うには、いくつかutility関数が必要であり、実際にはライブラリを利用することになるだろう。
+以下の2つのライブラリで説明したい。
+- Neverthrow
 - fp-ts
-- neverthrow
-- effect
 
-試したPR
-https://github.com/motojouya/croaker/pull/42
+ただ、上記のライブラリの利用例にはいる前に、基本的な考え方は抑えておきたい。
 
-### neverthrow
+エラーの表現は自由だが、エラーはreturnし、returnするのはobjectであるようだ。
+もともと関数型プログラミングパラダイムの文脈のものなので、メソッドを実装できるclassよりも、データ構造のみを表現するobjectのほうが相性がよいのだろう。
+
+以下のように表現し、returnする。例ではエラーは`Error class`で表現する。
+```ts
+type Failure<E> = {
+  isOk: false;
+  error: E;
+};
+
+type Success<A> = {
+  isOk: true;
+  data: A;
+};
+
+type Result<E, A> = Failure<E> | Success<A>;
+
+function divide(left: number, right: number): Result<RangeError, number> {
+  if (right === 0) {
+    return {
+      isOk: false,
+      error: new RangeError('zero divide!');
+    };
+  }
+
+  return {
+    isOk: true,
+    data: left / right;
+  };
+}
+
+function pow(left: number, right: number): Result<RangeError, number> {
+  if (left < 0) {
+    return {
+      isOk: false,
+      error: new RangeError('Imaginary Number Possible!');
+    };
+  }
+
+  return {
+    isOk: true,
+    data: Math.pow(left, right);
+  };
+}
+```
+
+上記が基本となるが、Promise Chain Styleの例のように、ここからutility関数を使って、より便利にハンドリングしていくというのが特徴だ。
+簡易的な実装なら、以下のような感じになるだろう。
+
+```ts
+function <E1, A1, E2, A2>pipe(func: (data: A1) => Result<E1 | E2, A2>) {
+  return function<>(beforeResult: Result<E1, A1>): Result<E1 | E2, A2> {
+    if (!beforeResult.isOk) {
+      return beforeResult;
+    }
+    return func(beforeResult.data);
+  }
+}
+
+function callerFunc(val: number): Result<RangeError, number> {
+  const divided = pipe((calcVal) => divide(calcVal, 2))(val);
+  const powed = pipe((calcVal) => pow(calcVal, 2))(divided);
+  return powed;
+}
+```
+
+Railwayというのは、線路が始点から終点に流れる複数の線路が、お互いを行ったり来たりできるイメージだ。
+ここで複数ある線路の片方は正常系、もう一方はエラーだ。そして、今回紹介しているRailwayは行ったり来たりは出来ず、正常系からエラーに移動することはできるが、逆はできない。
+
+上記の例を視ると、pipe関数の中でbeforeResultが`isOk=false`の場合に次の関数を実行せずにreturnしている。
+callerFuncの中で、pipe関数で流れを繋いでおり、コードの頭から最後まで流れている。つまり始点から終点までRailが流れる。
+ただし、pipe関数の中の制御で、エラーが来た場合は、常にエラー側の処理となり、正常系にはならない。
+
+より具体的に、divideでエラーになれば、`pipe(pow)`でもそのエラーとなって、callerFuncの返り値になる。
+divideでもpowでも計算ができれば、正常な値がcallerFuncの返り値になる。
+この文章の上では、この概念をRailway Oriented Styleとして定義する。
+
+#### Neverthrow
 
 補うコード。これがあればfp-tsと同等のことができそう
 ```ts
@@ -757,9 +1060,14 @@ const constant = (key, func) => (carry) => {
 }
 ```
 
-TODO callbackで解決するパターンもあるっぽい。メジャーなイメージないけど
-->結局Promiseのチェーンと同じなので、railway orientedと表現すべきでは。
-https://typescript-jp.gitbook.io/deep-dive/type-system/exceptions#anatahaerwosursuruhaarimasen
+#### fp-ts
+
+
+### Style 比較
+Golang Styleとfp-tsの比較
+
+試したPR
+https://github.com/motojouya/croaker/pull/42
 
 # 利用
 組み合わせて使う。
