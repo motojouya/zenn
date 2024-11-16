@@ -322,7 +322,7 @@ class NotFoundError extends Error {
 };
 ```
 
-`Error class`は`message`という項目を引数に取るので、superに与えるほうがよい。
+`Error class`は`message`という項目を引数に取るので、親コンストラクタに与えるほうがよい。
 また、`Error class`はもともと`name`プロパティを持っており`Error`という値なので、区別のために上書きしておくべきだ。
 
 `instanceof`で同一性を判定できるのは`Error class`でないクラスと同様だ。
@@ -630,18 +630,14 @@ TODO type guard効くか、ちゃんと調べておきたい
 const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
 type ErrorString = typeof ERROR_ZERO_DIVIDE;
 
-// TODO super class必要？objectとの差別化要素として例挙したほうがいいか。
-
 class CustomError<E> {
-  constructor(public readonly error: E) {
-    this.hasError = true;
-  }
+  public hasError = true;
+  constructor(public readonly error: E) {}
 }
 
 class Success<A> {
-  constructor(public readonly data: A) {
-    this.hasError = false;
-  }
+  public hasError = false;
+  constructor(public readonly data: A) {}
 }
 
 type Result<E, A> = CustomError<E> | Success<A>;
@@ -666,9 +662,9 @@ if (!result.hasError) {
 }
 ```
 
-例の中で、`CustomError`としたのは`Error class`と命名が重複しないようにするためだ。
-ここで説明しているのは、エラーの表現ではなく、エラーを含んだreturnする値をどう表現するかだ。
-なので、エラーを継承していない？
+上記の例は、継承などは利用していないが、super classで共通のメソッドを用意してもよい。
+ただ、objectの例でも、当該のobjectを引数に受け取る関数を用意すれば、構造的には同じことができる。
+もちろん、読んだ感触は違ってくるが、そういった関数、メソッドについては、大きな違いがあるわけではないので、ここでは言及しない。
 
 ## エラーの発生とハンドリングの場所
 
@@ -699,8 +695,8 @@ if (!result.hasError) {
 
 ### 変換
 エラーを何らかの形に変換することはよくあるだろう。
-関数は文脈があり、DBレイヤでのエラーは、利用者からしたらただのサーバエラーになる。こういった変換もある。
-TODO
+関数は文脈がある。例えば、DBレイヤでのSQLのシンタックスエラーは、呼び出し元からすれば、与える引数のバリデーションをすり抜けた結果と捉えるかもしれない。
+エラーにはそれらの文脈を伴ってエスカレーションされるべきなので、エラーを変換するケースもある。
 
 ### フィードバック
 これはエラーを利用者に表示するということだ。
@@ -712,14 +708,25 @@ TODO
 ### 握り潰す
 エラーが発生しても、問題としないこともままある。あるいは、特定の関数の文脈ではエラーであっても、大枠での処理の全体からみれば、エラーでないというケースもある。
 
-## コーディングスタイル
-- try catch style
-- golang style
-- railway oriented style
+## Coding Style
+今まで、エラーハンドリングの要素について、様々な状況を検討してきた。
+それらの要素には相性があり、お互いを活かせるやり方として、要素を組み合わせたCoding Styleがあるはずだ。
+
+筆者が考えたもの（つまり検討が浅い）ものもあるが、3つのstyleを挙げてみる。挙げた3つ以外にも、相性のよいやり方があるかもしれないので、読者にも検討してみてほしい。
+
+### Try Catch Style
+
+###  Golang Style
+
+###  Railway Oriented Style
 
 ## railway oriented styleにできるライブラリ
 
-## fp-ts
+### Promise
+- thenでつなぐ
+- 非同期実行の場合でも型が消えるのは同じ。なのでrejectには型がつかない
+
+### fp-ts
 - fp-ts
 - neverthrow
 - effect
@@ -727,7 +734,7 @@ TODO
 試したPR
 https://github.com/motojouya/croaker/pull/42
 
-## neverthrow
+### neverthrow
 
 補うコード。これがあればfp-tsと同等のことができそう
 ```ts
@@ -751,13 +758,14 @@ const constant = (key, func) => (carry) => {
 ```
 
 TODO callbackで解決するパターンもあるっぽい。メジャーなイメージないけど
+->結局Promiseのチェーンと同じなので、railway orientedと表現すべきでは。
 https://typescript-jp.gitbook.io/deep-dive/type-system/exceptions#anatahaerwosursuruhaarimasen
 
 # 利用
 組み合わせて使う。
 筆者は、こういうときはこう。こういうときはこう。というような感じ。webアプリ。
 
-## outro
+# Outro
 エラーハンドリングについて、なるべく網羅的に解説してきた。
 読者には、特定のコードベースにおいて、エラーハンドリングをどうするか、一定のルールを持って運用できる手助けになればと思う。
 
