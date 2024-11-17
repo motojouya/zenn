@@ -1037,16 +1037,16 @@ divideでもpowでも計算ができれば、正常な値がcallerFuncの返り�
 
 #### NeverThrow
 NeverThrowはPromise Chain Styleに似た形になるだろう。
-ただ、ちゃんとエラーの型が効くので、安心だ。
+ただPromiseと違い、ちゃんとエラーの型が効くので安心だ。
 
 ```
-import type { Result } from 'neverthrow';
+import type { result } from 'neverthrow';
 import { err, ok } from 'neverthrow';
 
 function divide(right: number) {
-  return function (left: number): Result<number, RangeError> {
+  return function (left: number): result<number, rangeerror> {
     if (right === 0) {
-      return err(new RangeError('zero divide!'))
+      return err(new rangeerror('zero divide!'))
     }
 
     return ok(left / right);
@@ -1054,28 +1054,28 @@ function divide(right: number) {
 }
 
 function pow(right: number) {
-  function(left: number): Result<number, RangeError> {
+  function(left: number): result<number, rangeerror> {
     if (left < 0) {
-      return err(new RangeError('Imaginary Number Possible!'))
+      return err(new rangeerror('imaginary number possible!'))
     }
 
-    return ok(Math.pow(left, right));
+    return ok(math.pow(left, right));
   }
 }
 
-function <E1, A1, E2, A2>pipe(func: (data: A1) => Result<E1 | E2, A2>) {
-  return function<>(beforeResult: Result<E1, A1>): Result<E1 | E2, A2> {
-    if (!beforeResult.isOk) {
-      return beforeResult;
+function <e1, a1, e2, a2>pipe(func: (data: a1) => result<e1 | e2, a2>) {
+  return function<>(beforeresult: result<e1, a1>): result<e1 | e2, a2> {
+    if (!beforeresult.isok) {
+      return beforeresult;
     }
-    return func(beforeResult.data);
+    return func(beforeresult.data);
   }
 }
 
-function callerFunc(val: number): Result<number, RangeError> {
+function callerfunc(val: number): result<number, rangeerror> {
   return ok(val)
-    .andThen(divide(2))
-    .andThen(pow(0.5));
+    .andthen(divide(2))
+    .andthen(pow(0.5));
 }
 ```
 
@@ -1112,16 +1112,172 @@ function callerFunc(val: number): Result<number, RangeError> {
 }
 ```
 
-#### fp-ts
+1点補足しておくと、returnする値をNeverThrowで定義したwrapper関数を利用して作っているため、ソースコードのありとあらゆるところで、NeverThrowに依存することになる。
+これが嫌な場合は、エラーをthrowするコードを`fromThrowable`関数で囲ってやることで、エラーがthrowされたら`err`、正常な値なら`ok`として扱うことができる。
 
+紹介したのは基本的な実装方法だが、NeverThrowではもっといろいろなことができるので、興味がある読者は調べて見てほしい。
+
+```ts
+// fp-tsのbindの型。nameの型が偉いことになってる
+export declare const bind: <N, A, E, B>(
+  name: Exclude<N, keyof A>,
+  f: (a: A) => TaskEither<E, B>
+) => (ma: TaskEither<E, A>) => TaskEither<E, { readonly [K in N | keyof A]: K extends keyof A ? A[K] : B }>
+```
+
+#### fp-ts
+fp-tsはchainでつなぐタイプではない。名前からも想像がつく通り、より関数型パラダイム寄りのライブラリだ。
+こちらには、NeverThrowにはなかった`bind`関数が実装されているので、途中の計算結果を保持するのも簡単だ。
+
+```ts
+import { pipe } from "fp-ts/function";
+import { left, right, bindW, map } from 'fp-ts/Either';
+
+const isEven = (n: number) => n % 2 === 0;
+
+function divide(rightNum: number) {
+  return function (leftNum: number): Result<RangeError, number> {
+    if (rightNum === 0) {
+      return left(new RangeError('zero divide!'))
+    }
+
+    return right(leftNum / rightNum);
+  }
+}
+
+function pow(rightNum: number) {
+  function(leftNum: number): Result<RangeError, number> {
+    if (leftNum < 0) {
+      return left(new RangeError('Imaginary Number Possible!'))
+    }
+
+    return right(Math.pow(leftNum, rightNum));
+  }
+}
+
+function callerFunc(val: number): Result<RangeError, number> {
+  return pipe(
+    bindW('divided', ({ val }) => divide(2)(val)),
+    bindW('powed', ({ val }) => pow(0.5)(val)),
+    map(({ divided, powed }) => (divided * powed)),
+  );
+}
+```
+
+leftがエラーで、rightが正常値だ。rightは右という意味だが、正しいという意味でもあり、かかっている。Result型の順番も`Result<typeof left, typeof right>`となる。
+fp-tsにもエラーをthrowする関数を扱うためのhelper関数がある。上記で利用している`Either`なら`tryCatch`というものが利用できそうだ。
+
+fp-tsについても、もっと様々なことができるので興味がある読者は調べて使ってみてほしい。
 
 ### Style 比較
-Golang Styleとfp-tsの比較
+様々なエラーハンドリングを見てきたが、Styleとしては、何を選んでもいいだろう。
+関数型プログラミングパラダイムに慣れている開発者はfp-tsを選ぶだろうし、そもそも何も工夫しない標準的な書き方のほうがブレがないというならtry catch styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとGolang Styleで開発したい。）
 
-試したPR
+開発者の指向性はそれぞれでいいので論じるつもりはないが、コード量についてはfp-tsなり、NeverThrowを使ったほうが少なくなりそうな肌感がある。
+筆者は、TypeScriptで自分用のwebアプリケーションを書いたので、そこでコード量がどうなるかを比較した。Mergeしなかったが、以下がそのPRだ。
 https://github.com/motojouya/croaker/pull/42
 
+コードの詳細は説明しないが、行数にして対象の関数はGolang Styleで39行、fp-tsで38行になった。
+prettierの設定は120文字にしているので、折り返ししすぎているということはないだろう。予想に反して、行数はそれほど変わらなかった。
+この1例だけで評価するのは公平ではないので結論とはしなくないが、行数の節約のためにfp-tsを導入したいという理由は、少し弱い意見となりそうだ。
+
+PRを診てもらうほうが比較としてはわかりやすいが、念の為コードも乗せておく。
+
+:::details Golang Style vs fp-ts
+
+- Golang Style
+```ts
+export const postCroak: PostCroak =
+  ({ db, local, fetcher }) =>
+  (identifier) =>
+  async (text, thread) => {
+    const trimedContents = trimContents(text);
+    if (trimedContents instanceof InvalidArgumentsFail) {
+      return trimedContents;
+    }
+
+    const nullableThread = nullableId("thread", thread);
+    if (nullableThread instanceof InvalidArgumentsFail) {
+      return nullableThread;
+    }
+
+    const croaker = await getCroaker(identifier, !!nullableThread, local, db);
+    if (croaker instanceof AuthorityFail) {
+      return croaker;
+    }
+
+    const createCroak = {
+      croaker_id: croaker.croaker_id,
+      contents: trimedContents,
+      thread: nullableThread || undefined,
+    };
+
+    const links = await getOgps(fetcher, trimedContents);
+    if (links instanceof FetchAccessFail) {
+      return links;
+    }
+
+    const croak = await db.transact((trx) => trx.createTextCroak(createCroak, links));
+
+    return {
+      ...croak,
+      croaker_name: croaker.croaker_name,
+      has_thread: false,
+      files: [],
+    };
+  };
+```
+
+- fp-ts
+```ts
+export const postCroak: PostCroak =
+  ({ db, local, fetcher }) =>
+  (identifier) =>
+  (text, thread) =>
+    pipe(
+      TE.Do,
+      TE.bindW("trimedContents", () => TE.fromEither(trimContents(text))),
+      TE.bindW("nullableThread", () => TE.fromEither(nullableIdFP("thread", thread))),
+      TE.bindW(
+        "croaker",
+        ({ nullableThread }) =>
+          () =>
+            getCroaker(identifier, !!nullableThread, local, db),
+      ),
+      TE.bindW(
+        "links",
+        ({ trimedContents }) =>
+          () =>
+            getOgps(fetcher, trimedContents),
+      ),
+      TE.bindW("croakData", ({ croaker, trimedContents, nullableThread }) =>
+        TE.right({
+          croaker_id: croaker.croaker_id,
+          contents: trimedContents,
+          thread: nullableThread || undefined,
+        }),
+      ),
+      TE.bindW("croak", ({ croakData, links }) =>
+        TE.rightTask(() => db.transact((trx) => trx.createTextCroak(croakData, links))),
+      ),
+      TE.map(({ croak, croaker }) => ({
+        ...croak,
+        croaker_name: croaker.croaker_name,
+        has_thread: false,
+        files: [],
+      })),
+      TE.toUnion,
+    )();
+```
+
+:::
+
 ## 利用
+エラーハンドリングについて、様々なStyleを挙げてきた。筆者はGolang Styleで書いているが、実のところ一つのコードベースはこれだけでは扱いきれない。
+どうしてもtry catch styleが発生する場面が存在する。
+
+
+
 組み合わせて使う。
 筆者は、こういうときはこう。こういうときはこう。というような感じ。webアプリ。
 
