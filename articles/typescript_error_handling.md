@@ -2,7 +2,7 @@
 title: "TypeScriptのエラーハンドリングまとめ"
 emoji: "🙌"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ['TypeScript', 'fp-ts', 'neverthrow']
+topics: ['TypeScript', 'fp-ts', 'NeverThrow']
 published: false
 ---
 
@@ -955,7 +955,7 @@ Railway Oriented Programmingと銘打つからにはかなり特徴的であり�
 
 Railway Oriented Styleを行うには、いくつかutility関数が必要であり、実際にはライブラリを利用することになるだろう。
 以下の2つのライブラリで説明したい。
-- Neverthrow
+- NeverThrow
 - fp-ts
 
 ただ、上記のライブラリの利用例にはいる前に、基本的な考え方は抑えておきたい。
@@ -1035,33 +1035,80 @@ callerFuncの中で、pipe関数で流れを繋いでおり、コードの頭か
 divideでもpowでも計算ができれば、正常な値がcallerFuncの返り値になる。
 この文章の上では、この概念をRailway Oriented Styleとして定義する。
 
-#### Neverthrow
+#### NeverThrow
+NeverThrowはPromise Chain Styleに似た形になるだろう。
+ただ、ちゃんとエラーの型が効くので、安心だ。
 
-補うコード。これがあればfp-tsと同等のことができそう
+```
+import type { Result } from 'neverthrow';
+import { err, ok } from 'neverthrow';
 
-```ts
-function <E1, A1, E2, A2>bind(key: string, func: (data: A1) => Result<E1 | E2, A2>) {
+function divide(right: number) {
+  return function (left: number): Result<number, RangeError> {
+    if (right === 0) {
+      return err(new RangeError('zero divide!'))
+    }
 
+    return ok(left / right);
+  }
+}
+
+function pow(right: number) {
+  function(left: number): Result<number, RangeError> {
+    if (left < 0) {
+      return err(new RangeError('Imaginary Number Possible!'))
+    }
+
+    return ok(Math.pow(left, right));
+  }
+}
+
+function <E1, A1, E2, A2>pipe(func: (data: A1) => Result<E1 | E2, A2>) {
   return function<>(beforeResult: Result<E1, A1>): Result<E1 | E2, A2> {
-
     if (!beforeResult.isOk) {
       return beforeResult;
     }
-    const beforeData = beforeResult.data;
+    return func(beforeResult.data);
+  }
+}
+
+function callerFunc(val: number): Result<number, RangeError> {
+  return ok(val)
+    .andThen(divide(2))
+    .andThen(pow(0.5));
+}
+```
+
+上記の例は簡単なコードだ。divideもpowもnumberを受け取って、numberを返すので、つなぐことができる。
+例えば、divideとpowの返り値を、掛け算するようなコードはどうすればよいのか。
+
+途中の計算結果を、変数で保持するようなコードはNeverThrowにはサポートがないようだった。
+だからと言ってできないわけではない。以下のようなコードを用意すればいいだろう。
+
+```ts
+function <E1, A1, E2, A2>bind(key: string, func: (data: A1) => Result<A2, E2>) {
+
+  // TODO なんか型間違ってる気がする
+  return function<>(beforeData: A1): Result<A1 & { typeof key: A2 }, E2> {
 
     const newResult = func(beforeData);
-    if (!newResult.isOk) {
+    if (newResult.isErr) {
       return newResult;
     }
 
-    return {
-      isOk: true,
-      data: {
-        ...beforeData,
-        [key]: newResult.data,
-      },
-    };
+    return ok({
+      ...beforeData,
+      [key]: newResult.data,
+    });
   }
+}
+
+
+function callerFunc(val: number): Result<number, RangeError> {
+  return ok({ val })
+    .andThen(bind('divided', ({ val }) => divide(2)(val)))
+    .andThen(bind('powed', ({ val }) => pow(0.5)(val)))
+    .andThen(({ divided, powed }) => (divided * powed));
 }
 ```
 
