@@ -625,25 +625,21 @@ if (!result.hasError) {
 helper関数を定義しなくても、classでいいのでは？と思った読者もいるだろう。
 JavaScriptにおけるclassの実態はFunction classで関数なので、そう発想するのは自然な流れだろう。
 
-TODO type guard効くか、ちゃんと調べておきたい
-
 ```ts
 const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
 type ErrorString = typeof ERROR_ZERO_DIVIDE;
 
-class CustomError<E> {
-  public hasError = true;
-  constructor(public readonly error: E) {}
+class Result {}
+
+class CustomError<E = unknown> extends Result {
+  constructor(public readonly error: E) { super() }
 }
 
-class Success<A> {
-  public hasError = false;
-  constructor(public readonly data: A) {}
+class Success<A = unknown> extends Result {
+  constructor(public readonly data: A) { super() }
 }
 
-type Result<E, A> = CustomError<E> | Success<A>;
-
-function divide(left: number, right: number): Result<ErrorString, number> {
+function divide(left: number, right: number): Result {
   if (left === 0) {
     return new CustomError<ErrorString>(ERROR_ZERO_DIVIDE);
   }
@@ -652,19 +648,31 @@ function divide(left: number, right: number): Result<ErrorString, number> {
 
   return new Success<number>(calcResult);
 }
-```
 
-以下のように判定できる。これはobjectの例と同じだ。
-
-```ts
 const result = divide(12, 3);
-if (!result.hasError) {
-  console.log(result.data + 10); // TODO type guard 効く？
+if (result instanceof Success) {
+  test(result.data);
 }
 ```
 
-上記の例は、継承などは利用していないが、super classで共通のメソッドを用意してもよい。
-ただ、objectの例でも、当該のobjectを引数に受け取る関数を用意すれば、構造的には同じことができる。
+以下のように判定できるが、Unionを使ったときとあまり変わらないどころか、`Success`に与えている型引数が消えているように見える。
+ともすれば、test関数に与えているdataの型はunknownと判定されそうだが、これ以上はわからなかった。詳しい方がいたら、コメントで教えていただきたい。
+
+```ts
+const result = divide(12, 3);
+if (result instanceof Success) {
+  test(result.data);
+}
+
+function test(val: number) {
+  console.log(val + 10);
+}
+```
+
+筆者としては、仕様が把握できず、おすすめはできないやり方である。
+
+ただ、classで実装することのメリットは、super classで共通のメソッドを用意できることだ。
+しかし、objectの例でも、当該のobjectを引数に受け取る関数を用意すれば、構造的には同じことができる。
 もちろん、読んだ感触は違ってくるが、そういった関数、メソッドについては、大きな違いがあるわけではないので、ここでは言及しない。
 
 ### Promise
@@ -685,6 +693,7 @@ function divide(left: number, right: number): Promise<number> {
 
 ただ、この場合は、エラーの型は消える。関数のシグネチャにも現れていないだろう。
 以下のように、catch関数の中で、type guardを更に追加で入れてやらないと型判定されない。
+しかし、catch関数の場合は、`err`の型はanyになるので、コンパイルエラーとはならないようだ。
 
 ```ts
 const result = divide(12, 3);
@@ -701,7 +710,7 @@ result
 ```
 
 Promiseはtry catch節で扱うこともできる。エラーの型が消えるのは同じだ。
-TODO 要確認
+ただし、catch節の場合は、eがunknown型となるので、コンパイルエラーとなり、より安全に処理できる。
 
 ```ts
 const result = divide(12, 3);
@@ -1039,43 +1048,34 @@ divideでもpowでも計算ができれば、正常な値がcallerFuncの返り�
 NeverThrowはPromise Chain Styleに似た形になるだろう。
 ただPromiseと違い、ちゃんとエラーの型が効くので安心だ。
 
-```
-import type { result } from 'neverthrow';
+```ts
+import type { Result } from 'neverthrow';
 import { err, ok } from 'neverthrow';
 
-function divide(right: number) {
-  return function (left: number): result<number, rangeerror> {
+function divide(right: number): (left: number) => Result<number, RangeError> {
+  return function (left: number): Result<number, RangeError> {
     if (right === 0) {
-      return err(new rangeerror('zero divide!'))
+      return err(new RangeError('zero divide!'))
     }
 
     return ok(left / right);
   }
 }
 
-function pow(right: number) {
-  function(left: number): result<number, rangeerror> {
+function pow(right: number): (left: number) => Result<number, RangeError> {
+  return function (left: number): Result<number, RangeError> {
     if (left < 0) {
-      return err(new rangeerror('imaginary number possible!'))
+      return err(new RangeError('imaginary number possible!'))
     }
 
-    return ok(math.pow(left, right));
+    return ok(Math.pow(left, right));
   }
 }
 
-function <e1, a1, e2, a2>pipe(func: (data: a1) => result<e1 | e2, a2>) {
-  return function<>(beforeresult: result<e1, a1>): result<e1 | e2, a2> {
-    if (!beforeresult.isok) {
-      return beforeresult;
-    }
-    return func(beforeresult.data);
-  }
-}
-
-function callerfunc(val: number): result<number, rangeerror> {
-  return ok(val)
-    .andthen(divide(2))
-    .andthen(pow(0.5));
+function callerFunc(val: number): Result<number, RangeError> {
+  return ok(val + 10)
+    .andThen(divide(2))
+    .andThen(pow(0.5));
 }
 ```
 
@@ -1083,32 +1083,24 @@ function callerfunc(val: number): result<number, rangeerror> {
 例えば、divideとpowの返り値を、掛け算するようなコードはどうすればよいのか。
 
 途中の計算結果を、変数で保持するようなコードはNeverThrowにはサポートがないようだった。
-だからと言ってできないわけではない。以下のようなコードを用意すればいいだろう。
+だからと言ってできないわけではないはずだが、筆者はうまく実装出来なかった。
+理屈では、以下のようなコードを用意すればいいと思うのだが、コンパイルが通らない。
 
 ```ts
-function <E1, A1, E2, A2>bind(key: string, func: (data: A1) => Result<A2, E2>) {
-
-  // TODO なんか型間違ってる気がする
-  return function<>(beforeData: A1): Result<A1 & { typeof key: A2 }, E2> {
-
-    const newResult = func(beforeData);
-    if (newResult.isErr) {
-      return newResult;
-    }
-
-    return ok({
+function bind<O extends object, E2, A, K extends string>(key: K, func: (data: O) => Result<A, E2>) {
+  return function(beforeData: O): Result<O & { K: A }, E2> {
+    return func(beforeData).map(a => ({
       ...beforeData,
-      [key]: newResult.data,
-    });
+      [key]: a,
+    } as O & { K: A })); // 筆者ではうまいやり方がわからずasを利用
   }
 }
 
-
 function callerFunc(val: number): Result<number, RangeError> {
-  return ok({ val })
-    .andThen(bind('divided', ({ val }) => divide(2)(val)))
-    .andThen(bind('powed', ({ val }) => pow(0.5)(val)))
-    .andThen(({ divided, powed }) => (divided * powed));
+  return ok({ val: val + 10 })
+    .andThen(bind<{ val : number }, RangeError, number, 'divided'>('divided', ({ val }) => divide(2)(val)))
+    .andThen(bind<{ val : number, divided: number }, RangeError, number, 'powed'>('powed', ({ val }) => pow(0.5)(val))) // dividedがないというmessageのコンパイルエラー
+    .map(({ divided, powed }) => (divided * powed));
 }
 ```
 
@@ -1116,14 +1108,6 @@ function callerFunc(val: number): Result<number, RangeError> {
 これが嫌な場合は、エラーをthrowするコードを`fromThrowable`関数で囲ってやることで、エラーがthrowされたら`err`、正常な値なら`ok`として扱うことができる。
 
 紹介したのは基本的な実装方法だが、NeverThrowではもっといろいろなことができるので、興味がある読者は調べて見てほしい。
-
-```ts
-// fp-tsのbindの型。nameの型が偉いことになってる
-export declare const bind: <N, A, E, B>(
-  name: Exclude<N, keyof A>,
-  f: (a: A) => TaskEither<E, B>
-) => (ma: TaskEither<E, A>) => TaskEither<E, { readonly [K in N | keyof A]: K extends keyof A ? A[K] : B }>
-```
 
 #### fp-ts
 fp-tsはchainでつなぐタイプではない。名前からも想像がつく通り、より関数型パラダイム寄りのライブラリだ。
