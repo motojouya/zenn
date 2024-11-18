@@ -987,10 +987,10 @@ TypeScript的にUnion型は特徴的だが、エラーをreturnしている以�
 https://buildersbox.corp-sansan.com/entry/2024/03/26/110000
 
 Domain Modeling Made Functionalという書籍でRailway Oriented Programmingという名前で紹介されている。
-筆者は恥ずかしながら未読だが、このやり方については手元でコードを書いて試したので、説明するぐらいは問題ないだろう。
+筆者は恥ずかしながら未読なので、用語や解説が間違っていたら指摘いただきたい。
 
 Railway Oriented Programmingと銘打つからにはかなり特徴的であり、Programming Paradigmとして、コードベース全体に浸透させるべきものかもしれない。
-ただここの節では、Styleの一例として切り出せるもののみを上記の書籍からピックアップして、Railway Oriented Styleと呼んで紹介する。このスコープまでなら実際にコードベースの一部にのみ適用して利用することも可能だ。
+ただここの節では、Styleの一例として切り出せるもののみをピックアップして、Railway Oriented Styleと呼んで紹介する。コードベースの一部にのみ適用することも可能なStyleとしての説明だ。
 
 Railway Oriented Styleを行うには、いくつかutility関数が必要であり、実際にはライブラリを利用することになるだろう。
 以下の2つのライブラリで説明したい。
@@ -1306,7 +1306,7 @@ export const postCroak: PostCroak =
 
 つまり、エラーの種類や、発生場所によってはTry Catch Styleで実装する必要があるということだ。
 まとめると、[#エラーの発生場所とハンドリングの場所](#エラーの発生場所とハンドリングの場所)や[#エラーの種類](#エラーの種類)や[#後処理](#後処理)のやり方によって、[#エラーの表現](#エラーの表現)と[#エラーハンドリング](#エラーハンドリング)、場合によって[#returnする値](#returnする値)を検討する必要がある。
-また、それらを集約する形で[#Coding Style](#Coding Style)があり、参考にしたい。
+また、それらを集約する形で[#Coding Style](#Coding%20Style)があり、参考にしたい。
 
 読者も上記を検討した上で、TypeScriptを書いてほしい。面倒ならTry Catch Styleに統一するのも方法だろう。
 
