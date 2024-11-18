@@ -1083,25 +1083,26 @@ function callerFunc(val: number): Result<number, RangeError> {
 例えば、divideとpowの返り値を、掛け算するようなコードはどうすればよいのか。
 
 途中の計算結果を、変数で保持するようなコードはNeverThrowにはサポートがないようだった。
-だからと言ってできないわけではないはずだが、筆者はうまく実装出来なかった。
-理屈では、以下のようなコードを用意すればいいと思うのだが、コンパイルが通らない。
+だからと言ってできないわけではなく、以下のようなhelperを用意すれば可能だ。
+ちょっと型定義がややこしいが、fp-tsのbindの実装を参考にしている。もっといいやり方があるかもしれない。
 
 ```ts
-function bind<O extends object, E2, A, K extends string>(key: K, func: (data: O) => Result<A, E2>) {
-  return function(beforeData: O): Result<O & { K: A }, E2> {
+function bind<N extends string, O extends object, E2, A>(key: Exclude<N, keyof O>, func: (data: O) => Result<A, E2>) {
+  return function(beforeData: O): Result<{ [K in N | keyof O]: K extends keyof O ? O[K] : A }, E2> {
     return func(beforeData).map(a => ({
       ...beforeData,
       [key]: a,
-    } as O & { K: A })); // 筆者ではうまいやり方がわからずasを利用
+    } as { [K in N | keyof O]: K extends keyof O ? O[K] : A })); // 筆者ではうまいやり方がわからずasを利用
   }
 }
 
 function callerFunc(val: number): Result<number, RangeError> {
   return ok({ val: val + 10 })
-    .andThen(bind<{ val : number }, RangeError, number, 'divided'>('divided', ({ val }) => divide(2)(val)))
-    .andThen(bind<{ val : number, divided: number }, RangeError, number, 'powed'>('powed', ({ val }) => pow(0.5)(val))) // dividedがないというmessageのコンパイルエラー
+    .andThen(bind('divided', ({ val }) => divide(2)(val)))
+    .andThen(bind('powed', ({ val }) => pow(0.5)(val)))
     .map(({ divided, powed }) => (divided * powed));
 }
+
 ```
 
 1点補足しておくと、returnする値をNeverThrowで定義したwrapper関数を利用して作っているため、ソースコードのありとあらゆるところで、NeverThrowに依存することになる。
