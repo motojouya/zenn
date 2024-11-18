@@ -15,8 +15,7 @@ TypeScriptというよりJavaScriptで機能的に提供されているエラー
 それらを整理し、エラーハンドリングをどのように書くべきか、考える補助になる記事をまとめて置きたい。
 
 # 課題
-JavaScriptで機能的に提供されているエラーハンドリングはtry catch文であることはすでに述べた。
-これがTypeScriptになり、TypeScriptが提供する型チェックの網をすり抜けてしまう仕様のため、どうしてもTypeScriptの機能を活かせない。
+JavaScriptで機能的に提供されているエラーハンドリングはtry catch文であることはすでに述べた。これがTypeScriptになると、TypeScriptが提供する型チェックの網をすり抜けてしまう仕様のため、どうしても機能を活かしきれない。
 
 以下はMDNのRangeErrorの解説ページの内容だが、型を付けてみたものだ。
 
@@ -37,12 +36,10 @@ try {
 }
 ```
 
-check関数は値を返さない`void`関数なわけだが、RangeErrorになる可能性もある。
-外側のtry catchを書くべきか否かは、関数の型だけでは判断できない。
+check関数は値を返さない`void`関数なわけだが、`RangeError`になる可能性もある。外側のtry catchを書くべきか否かは、関数の型だけでは判断できない。
 
-ではコードを読めばよいという意見もあるかもしれないが、上記の例は限りなく簡単な例であり、実際には更に深いコールスタックの中で投げられている例外などは把握できようはずもない。
-したがって、catch節で`instanceof`で判定するものも、関数の中を見ないと把握できないのだ。
-このように関数のシグネチャを読むだけでは、関数の挙動が想像できないというのが、try catch文の課題だ。
+ではコードを読めばよいという意見もあるかもしれないが、上記の例は限りなく簡単な例であり、実際には深いコールスタックの中で投げられている例外などは把握できようはずもない。したがって、catch節で`instanceof`で判定するものも、関数の中を見ないと把握できないのだ。
+このように関数の型定義を読むだけでは、関数の挙動が想像できないというのが、try catch文の課題だ。
 
 # 整理
 上記の仕様をカバーしようと、プログラマレベルでは様々な工夫をしているようだ。
@@ -64,27 +61,25 @@ check関数は値を返さない`void`関数なわけだが、RangeErrorにな�
 この記事のタイトルは`TypeScriptのエラーハンドリングまとめ`だ。
 これは、広い意味で`エラー`という単語を用い、エラーをどう扱うかという意味で`ハンドリング`としている。
 
-JavaScriptには、`Error class`があるが、文中で言及する際は`Error class`と表現する。
-それ以外に`エラー`とした場合は、より広義に意図しない挙動を表現する単語として用いる。
+JavaScriptには、`Error class`があるが、文中で言及する際は`Error class`と表現する。それ以外に`エラー`とした場合は、より広義に意図しない挙動を表現する単語として用いる。
 
 また、`例外`と`エラー`の区別はJavaScriptにおいて曖昧に感じる。
-MDNの説明を見ると、throwされ、try catchでハンドリングするものを例外と読んでいるようなニュアンスに感じる。
+MDNの説明を見ると、throwされ、try catchでハンドリングするものを例外と呼んているようなニュアンスに感じる。
 https://developer.mozilla.org/ja/docs/Web/JavaScript/Guide/Control_flow_and_error_handling#%E4%BE%8B%E5%A4%96%E5%87%A6%E7%90%86%E6%96%87
 
-この文章上は、throwすることも、try catchすることも、コーディングの選択肢と捉えフラットに評価したい。
-また、広義には`エラー`という単語があり、それで十分表現できるはずだ。
+この文章上は、throwしtry catchすることも、コーディングの選択肢と捉えフラットに評価したい。また、広義には`エラー`という単語があり、それで十分表現できるはずだ。
 よって基本的に`例外`という単語は用いず、throwやtry catchについては個別に言及していく。
 
 ## エラーの種類
 エラーという単語は意図しない挙動としたが、それらも大まかに分類しておくべきだろう。
 
 ### TypeScriptのコンパイルエラー
-基本的には開発時に修正するものだろう。解決できなければ@ts-ignoreをつけることもあるかもしれない。
-実行時に発生することは想定しない。
+基本的には開発時に修正するものだろう。解決できなければ`@ts-ignore`をつけることもあるかもしれない。
+基本的に実行時に発生することは想定しない。
 
 ### 利用者が回復不可能なエラー
-これはバグの類になるだろう。筆者は主にWebサービスを開発しているが、HTTP status codeでは500に該当するものだ。
-利用者が回復不可能なため、開発者が対応する必要がある。
+これはバグや不具合の類になるだろう。筆者は主にWebサービスを開発しているが、HTTP status codeでは500に該当するものだ。
+利用者が回復不可能なため、開発者が対応する必要がある。本来は、開発時にすべて取り除かれているのが理想だが、たとえばクラウドサービスの障害によって発生するなど、開発者がコントロール出来ないものもある。
 
 ### 利用者が回復可能なエラー
 開発者が想定し、利用者が原因となって引き起こすエラーだ。
@@ -100,7 +95,7 @@ https://developer.mozilla.org/ja/docs/Web/JavaScript/Guide/Control_flow_and_erro
 - class
 - Error class
 
-すべて解説はするが、実用的にはobject,class,Errorだろう。
+すべて解説はするが、実用的にはobject,class,Error classだろう。
 
 ### boolean
 true/falseでエラーか否かを表現できるので、最も簡易だが強力な例とも言える。
@@ -165,8 +160,7 @@ type NotFoundError = {
 ```
 
 上記のようにメッセージの他、エラーの原因となった情報を入れることができる。
-ただし、objectの同一性の判定は、少々コード量が増える。
-TypeScriptにはType Guardという機能があり、同一性を判定したあとは、型が効くようにしておきたい。
+ただし、objectの同一性の判定は、少々コード量が増える。TypeScriptにはType Guardという機能があり、同一性を判定したあとは、型が効くようにしておきたい。
 
 ```ts
 function isNotFoundError(err: any) err is NotFoundError {
@@ -268,8 +262,8 @@ const result = divideAndPow(10, 0, 0.5);
 if (isArithmeticError(result)) {
   if (result.type === 'DIVISION_ERROR') {
     console.log('division error!');
-  } else if (result.type === 'POW_ERROR') {
-    console.log('error error!');
+  } else {
+    console.log('pow error!'); // DIVISION_ERRORでないものはPOW_ERRORでしかないのをtypescriptは知っている
   }
 } else {
   console.log(result);
@@ -298,8 +292,7 @@ if (err instanceof NotFoundError) {
 ```
 
 これはobjectと違い、classがTypeScript上だけではなくJavaScript実行時にも型として扱えるためだ。
-ただし`instanceof`は、JavaScriptのprototype継承の仕組みを利用し、prototypeツリーのどこかに存在すればそのclassと判定されてしまうので、誤判定の可能性はある。
-ただ、これも何らかの開発ルールを設ければ、それほど対処が難しいものでもないだろう。
+ただし`instanceof`は、JavaScriptのprototype継承の仕組みを利用し、prototypeツリーのどこかに存在すればそのclassと判定されてしまうので、誤判定の可能性はある。ただ、これも何らかの開発ルールを設ければ、それほど対処が難しいものでもないだろう。
 
 また、継承の仕組みはエラーのカテゴライズに使えるかもしれない。
 ```ts
@@ -339,7 +332,7 @@ class NotFoundError extends Error {
 良さとしては、throwした際にstack traceを取得できる点だろう。例外発生時にどのようなコールスタックなのか把握できれば、原因特定は格段に楽になる。
 
 ただ、落とし穴として、`Error class`のプロパティは列挙可能とならない。
-特に何も継承していないクラスでは、`this.prop = value;`とするとpropは列挙可能になるが、`Error class`はならない。
+特に何も継承していないクラスでは、`this.prop = value;`とすると`prop`は列挙可能になるが、`Error class`ではならない。
 
 列挙可能というのは、具体的には`Object.keys()`の返り値に入るということだが、より実用的には列挙可能なプロパティは`JSON.stringify`で出力されるjsonのプロパティとなる。
 列挙可能でない項目も`Object.getOwnPropertyNames`なら列挙できるので、`toJSON`関数を実装してやれば、`JSON.stringify`でも項目として出力できる。
@@ -370,8 +363,7 @@ class NotFoundError extends CustomError {
 ```
 
 他にも`Error.prototype.toJSON`に実装することもできるが、できれば標準ライブラリの挙動は換えたくないだろう。
-また、`JSON.stringify`の第二引数に、`replacer`と呼ばれる関数を与えることができ、そこで値を変換して出力することもできる。
-特にライブラリから投げられる`Error class`の内容をjsonに変換したいのであれば、こちらを使うべきだろう。
+また、`JSON.stringify`の第二引数に、`replacer`と呼ばれる関数を与えることができ、そこで値を変換して出力することもできる。特にライブラリから投げられる`Error class`の内容をjsonに変換したいのであれば、こちらを使うべきだろう。
 
 ## エラーハンドリング
 エラーをどう表現するかは列挙してきたが、それをどうハンドリングするかは、また別の話題だ。
@@ -402,8 +394,7 @@ try {
 }
 ```
 
-ただ、上記のようにcatch節で、どのエラーなのか判定しなければ、TypeScript上では型安全に使えない。
-`Error class`や`RangeError class`は`message`プロパティを持っているが、そうでなければ、`message`プロパティがあるかどうかわからない。
+ただ、上記のようにcatch節で、どのエラーなのか判定しなければ、TypeScript上では型安全に使えない。`Error class`や`RangeError class`は`message`プロパティを持っているが、そうでなければ、`message`プロパティがあるかどうかわからない。
 throwする際のツラミはここで、`validateInt`の返り値はvoidでエラーの型が出てこない。したがって、どんなエラーが投げられるのか、コードを見に行かなければならない点だ。
 
 反面、node.jsやブラウザ環境では、`Error class`を継承したエラーを投げるとstack traceが取得できる。
@@ -427,8 +418,8 @@ if (validateResult) {
 }
 ```
 
-反面、throwは一番直近のtry catch節まで、関数のコールスタックを飛び越えて到達できるので、築一認識する必要はない。
-ただ、returnする場合は、通貨するコールスタックすべてで、エラーがあったか、判定しなくてはならない。
+反面、throwは一番直近のtry catch節まで、関数のコールスタックを飛び越えて到達できるので、いちいち認識する必要はない。
+ただ、returnする場合は、通過するコールスタックすべてで、エラーがあったか、判定しなくてはならない。
 
 ```ts
 function validateInt(val: number): boolean {
@@ -491,7 +482,7 @@ function divide(left: number, right: number): number | ErrorString {
 }
 ```
 
-上記は文字列リテラルをエラーの表現とし、returnの表現としてUnionを用いたものだ。
+上記は文字列リテラルをエラーの表現とし、returnの表現としてUnion型を用いたものだ。
 上記であれば、以下のようにエラーを判定できる。
 
 ```ts
@@ -503,13 +494,15 @@ if (result === ERROR_ZERO_DIVIDE) {
 console.log(result + 10); // numberとして解釈される
 ```
 
+これ以降のものもUnion型を使うのだが、以降はTuple型のUnion、objectのUnion、classのUnionという形でUnionに与える型を限定したやり方になる。
+したがって、ここでUnionとしているのは正常な値の型とエラーの型に一貫性のないものとする。
+
 ### Tuple
-あとにGolang Styleという表現で、プログラミングのスタイルを定義して紹介する。
-それとは直接的に関係ないのだが、Go言語には関数が多値を返せる仕様になっているようだ。
-多値を返すために、エラーも正常な値も区別してreturnすることができる。
+あとにGolang Styleという表現で、コーディングのスタイルを定義して紹介する。
+それとは直接的に関係ないのだが、Go言語には関数が多値を返せる仕様になっているようだ。多値を返すために、エラーも正常な値も区別してreturnすることができる。
 
 JavaScriptではそんな機能はないが、配列を返すことで擬似的に表現はできる。
-TypeScriptでやるならば、より厳密にTupleを用いるべきだろう。
+TypeScriptでやるならば、より厳密にTuple型を用いるべきだろう。
 
 ```ts
 const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
@@ -533,7 +526,7 @@ function divide(left: number, right: number): Result<ErrorString, number> {
 ```ts
 const [err, calcResult] = divide(12, 3);
 if (!err) {
-  console.log(calcResult + 10); // コンパイルエラー
+  console.log(calcResult + 10); // コンパイルエラー TODO 要検証 エラーとならないかも。anyでもいけるので
 }
 ```
 
@@ -633,7 +626,7 @@ if (!result.hasError) {
 
 ### class
 helper関数を定義しなくても、classでいいのでは？と思った読者もいるだろう。
-JavaScriptにおけるclassの実態はFunction classで関数なので、そう発想するのは自然な流れだろう。
+JavaScriptにおけるclassの実態はFunctionで関数なので、そう発想するのは自然な流れだろう。
 
 ```ts
 const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
@@ -649,6 +642,9 @@ class Success<A = unknown> extends Result {
   constructor(public readonly data: A) { super() }
 }
 
+// TODO tupleでもunionを利用してるのだから、別にunionにしてもいいよね。でも型引数はエラーにAはやだし、正常にEはやなので、それで実現できる形で追求したい。
+// hasErrorをリテラルで持ったとして、うまくいけばいいけど
+
 function divide(left: number, right: number): Result {
   if (left === 0) {
     return new CustomError<ErrorString>(ERROR_ZERO_DIVIDE);
@@ -657,11 +653,6 @@ function divide(left: number, right: number): Result {
   const calcResult = left / right;
 
   return new Success<number>(calcResult);
-}
-
-const result = divide(12, 3);
-if (result instanceof Success) {
-  test(result.data);
 }
 ```
 
@@ -685,6 +676,8 @@ function test(val: number) {
 しかし、objectの例でも、当該のobjectを引数に受け取る関数を用意すれば、構造的には同じことができる。
 もちろん、読んだ感触は違ってくるが、そういった関数、メソッドについては、大きな違いがあるわけではないので、ここでは言及しない。
 
+TODO NeverThrowは実装としてはclass。ただし、`Ok<E, A> | Err<E, A>`という型なので、型引数が冗長。これに言及するかは要検討
+
 ### Promise
 Promise型を返すという方法もある。
 
@@ -702,8 +695,7 @@ function divide(left: number, right: number): Promise<number> {
 ```
 
 ただ、この場合は、エラーの型は消える。関数のシグネチャにも現れていないだろう。
-以下のように、catch関数の中で、type guardを更に追加で入れてやらないと型判定されない。
-しかし、catch関数の場合は、`err`の型はanyになるので、コンパイルエラーとはならないようだ。
+以下のように、catch関数の中で、type guardを更に追加で入れてやらないと型判定されない。しかし、catch関数の場合は、`err`の型はanyになるので、コンパイルエラーとはならないようだ。
 
 ```ts
 const result = divide(12, 3);
@@ -744,9 +736,8 @@ try {
 ライブラリで発生するエラーは基本的には`Error class`だろう。
 ただschema validatorのzodなんかだと、`Error class`を投げるのではなく、`success: boolean`というプロパティを持つobjectを返すやり方も提供してくれる。
 
-アプリケーションでも、エラーの表現は`Error class`で、throwするハンドリングで扱う場合は問題ないが、returnする際は扱いづらい。
-ライブラリは利用時にwrapしてやるのがいいだろう。直接ライブラリのAPIを使うのではなく、それらを扱う共通の関数を定義して提供するほうがよい。
-それならば、ライブラリの変更の影響を抑えられるし、wrapしているので、その中でtry catchしてやれば、returnするのも簡単だ。
+アプリケーションコード上でも、エラーの表現は`Error class`で、throwするハンドリングで扱う場合は問題ないが、returnしたい場合は扱いづらい。
+ライブラリは利用時にwrapしてやるのがいいだろう。直接ライブラリのAPIを使うのではなく、それらを扱う共通の関数を定義して提供するほうがよい。それならば、ライブラリの変更の影響を抑えられるし、wrapしているので、その中でtry catchしてやれば、returnするのも簡単だ。
 
 ライブラリというよりフレームワーク的になってくるが、ライブラリから実行されるコードの場合、`Error class`をthrowしないと想定する挙動にならないものも存在する。
 たとえば、HTTP status codeを500で返してほしいとか、DBのトランザクションをrollbackしてほしいと言った場合には、アプリケーションコードから`Error class`をthrowする必要がある。
@@ -755,11 +746,11 @@ try {
 アプリケーションコードでは、より自由に定義すればよい。
 ただし、ライブラリを使うこともあるし、ライブラリに使ってもらうコードを書くこともある点には注意だ。
 
-アプリケーションを書いていると、様々な関数を定義することになる。
-対象的なのは、末端の単一の役割を持つような関数と、ロジック全体を表現するような関数があるということだ。
+アプリケーションを書いていると、様々な関数を定義することになる。対象的なのは、末端の単一の役割を持つような関数と、ロジック全体を表現するような関数があるということだ。
 前者は処理の独立性、扱いやすさを追求する形になるだろう。逆に後者は、様々な関数やモジュールを組み合わせて、システムの要件を実現する。
 
 前者で発生するエラーは限られたものだろう。反面、後者はありとあらゆるエラーが発生する可能性もある。
+これは後述するCoding Styleを選択する際に効いてくる。限られたエラーだけならば、単純なコードだけでも可読性が損なわれないが、ありとあらゆるエラーが発生するのであれば、何らかの仕組みがあったほうが扱いやすいだろう。
 
 ## 後処理
 エラーが発生した場合に、どうするかも検討しておく。
@@ -778,7 +769,7 @@ try {
 エラーが発生した際にログに記録しておき、開発者が確認することで不具合に気づきやすくなる。
 
 ### 握り潰す
-エラーが発生しても、問題としないこともままある。あるいは、特定の関数の文脈ではエラーであっても、大枠での処理の全体からみれば、エラーでないというケースもある。
+エラーが発生しても問題としないこともある。あるいは、特定の関数の文脈ではエラーであっても、大枠での処理の全体からみれば、エラーでないというケースもある。
 
 ## CodingStyle
 今まで、エラーハンドリングの要素について、様々な状況を検討してきた。
@@ -839,8 +830,8 @@ function topLevelFunc() {
 }
 ```
 
-これはすでに述べた通り、エラーの型が表現されていないので、実装を読まなければ型がわからない。
-またcatch節でそうやって調べた型でType Guardしなければ、messageすら読めないというところだ。
+これはすでに述べた通り、エラーの型が表現されていないので、実装を読まなければ型がわからない。またcatch節でそうやって調べた型でType Guardしなければ、messageすら読めないというところだ。
+代わりにmiddleFuncのような中間のコールスタックでは何もする必要がない。
 
 ### Promise Chain Style
 こちらも型が効かないパターンではあるが、Promiseで扱うこともできる。
@@ -911,7 +902,7 @@ Try Catch Styleと同様、エラーの型は消えるので、type guardで検�
 また、Chainでつなぐと、中間のmiddleFuncもPromiseを意識しなくてはならなくなる。
 
 これなら、return表現をPromiseにしたとしてもtry catch文で処理するほうが現実的だろう。
-これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRail Oriented Styleの説明のためにも挙げておく。
+これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRailway Oriented Styleの説明のためにも挙げておく。
 
 ###  Golang Style
 Golang Styleは筆者が勝手に呼んでいるものなので、他にいい命名があったら教えてほしい。
@@ -971,16 +962,16 @@ function topLevelFunc() {
 }
 ```
 
-察しのよい読者は気づいていると思うが、筆者がおすすめするやり方だ。なんならこの長い記事は、この節のためにあると言ってもよい。
+察しのよい読者は気づいていると思うが、筆者がおすすめするやり方だ。なんならこの長い記事は、この段落のためにあると言ってもよい。
 middleFuncのようなコールスタックの途中の関数であっても、エラーを意識してif分岐を書かなくてはならないのは面倒だが、確実に型が反映されるので、topLevelFuncでもエラー型を意識できる。
 TypeScript的にUnion型は特徴的だが、エラーをreturnしている以外は至ってなんの変哲もないJavaScriptコードになる。
 
 エラーをclassで表現しているのは、instanceofでtype guardが効くためだ。わざわざユーザ定義のtype guard関数を用意しなくてもよい。
 蛇足だが、筆者はTypeScriptのコーディングにおいて、ほとんどclassは利用しないのだが、このエラーハンドリングにおいては、TypeScriptでもJavaScriptでも型表現として利用できるclassは便利に使っている。
 
-`Error class`をエラーとして用いてもよく、だめな理由はないのだが、筆者は通常のclassに独自のsuper classを定義して継承して利用している。
-後述するが、Try Catch Styleはどうしても併用する必要があり、必然的に`Error class`はそちらで利用したいので区別するためだ。
-区別のために、継承ツリー上に目印になるようなsuper classを定義してもよいが、わざわざ`Error class`を継承する理由もない。
+`Error class`をエラーとして用いてもよく、ダメな理由はない。
+後述するが、Try Catch Styleはどうしても併用する必要があり、したがって`Error class`はそちらで利用したいので区別したほうがわかりやすい。
+区別のために、継承ツリー上に目印になるようなsuper classを定義してもよいが、わざわざ`Error class`を継承する理由もないというのが、単純なclassをオススメする理由だ。
 
 ###  Railway Oriented Style
 こちらについては以下の記事に詳しい。
@@ -990,9 +981,9 @@ Domain Modeling Made Functionalという書籍でRailway Oriented Programmingと
 筆者は恥ずかしながら未読なので、用語や解説が間違っていたら指摘いただきたい。
 
 Railway Oriented Programmingと銘打つからにはかなり特徴的であり、Programming Paradigmとして、コードベース全体に浸透させるべきものかもしれない。
-ただここの節では、Styleの一例として切り出せるもののみをピックアップして、Railway Oriented Styleと呼んで紹介する。コードベースの一部にのみ適用することも可能なStyleとしての説明だ。
+ただここの段落では、Styleの一例として切り出せるもののみをピックアップして、Railway Oriented Styleと呼んで紹介する。コードベースの一部にのみ適用することも可能なStyleとしての説明だ。
 
-Railway Oriented Styleを行うには、いくつかutility関数が必要であり、実際にはライブラリを利用することになるだろう。
+Railway Oriented Styleを行うには、いくつかutility関数が必要であり、実際にはそれらが用意されたライブラリを利用することになるだろう。
 以下の2つのライブラリで説明したい。
 - NeverThrow
 - fp-ts
@@ -1049,7 +1040,7 @@ function pow(left: number, right: number): Result<RangeError, number> {
 }
 ```
 
-上記が基本となるが、Promise Chain Styleの例のように、ここからutility関数を使って、より便利にハンドリングしていくというのが特徴だ。
+上記が下ごしらえとなるが、Promise Chain Styleの例のように、ここからutility関数を使って、より便利にハンドリングしていくというのが特徴だ。
 簡易的な実装なら、以下のような感じになるだろう。
 
 ```ts
@@ -1069,12 +1060,13 @@ function callerFunc(val: number): Result<RangeError, number> {
 }
 ```
 
-Railwayというのは、線路が始点から終点に流れる複数の線路が、お互いを行ったり来たりできるイメージだ。
-ここで複数ある線路の片方は正常系、もう一方はエラーだ。そして、今回紹介しているRailwayは行ったり来たりは出来ず、正常系からエラーに移動することはできるが、逆はできない。
+Railwayというのは、始点から終点に流れる複線の線路が、複線どうしを移動できるイメージだ。
+ここで複線の片方は正常系、もう一方はエラーだ。そして、今回紹介しているRailwayは行ったり来たりは出来ず、正常系からエラーに移動することはできるが、逆はできない。
 
-上記の例を視ると、pipe関数の中でbeforeResultが`isOk=false`の場合に次の関数を実行せずにreturnしている。
-callerFuncの中で、pipe関数で流れを繋いでおり、コードの頭から最後まで流れている。つまり始点から終点までRailが流れる。
-ただし、pipe関数の中の制御で、エラーが来た場合は、常にエラー側の処理となり、正常系にはならない。
+上記の例をみると、正常な場合にはcallerFuncの最初から最後まで実行されるのは明確だろう。
+ただエラーの場合にも、pipe関数を呼ぶcallerFuncではearly returnされずに最後まで実行される。これはpipe関数の中でbeforeResultが`isOk=false`の場合に次の関数を実行せずにエラーをreturnしているためだ。
+つまり、callerFuncの中で、pipe関数で流れを繋いでおり、コードの頭から最後まで流れている。始点から終点までRailが流れる。
+そして、pipe関数の中の制御で、エラーが来た場合は、常にエラー側の処理となり、正常系にはならない。
 
 より具体的に、divideでエラーになれば、`pipe(pow)`でもそのエラーとなって、callerFuncの返り値になる。
 divideでもpowでも計算ができれば、正常な値がcallerFuncの返り値になる。
@@ -1115,11 +1107,10 @@ function callerFunc(val: number): Result<number, RangeError> {
 }
 ```
 
-上記の例は簡単なコードだ。divideもpowもnumberを受け取って、numberを返すので、つなぐことができる。
-例えば、divideとpowの返り値を、掛け算するようなコードはどうすればよいのか。
+上記の例は簡単なコードだ。divideもpowもnumberを受け取って、numberを返すので、つなぐことができる。つまり基本的にはつなぐ関数の前後で、返り値と引数の型を一致させる必要がある。
+では例えば、divideとpowの返り値を、掛け算するようなコードはどうすればよいのか。
 
-途中の計算結果を、変数で保持するようなコードはNeverThrowにはサポートがないようだった。
-だからと言ってできないわけではなく、以下のようなhelperを用意すれば可能だ。
+途中の計算結果を、変数で保持するようなコードはNeverThrowにはサポートがないようだった。だからと言ってできないわけではなく、以下のようなhelperを用意すれば可能だ。
 ちょっと型定義がややこしいが、fp-tsのbindの実装を参考にしている。もっといいやり方があるかもしれない。
 
 ```ts
@@ -1154,8 +1145,6 @@ fp-tsはchainでつなぐタイプではない。名前からも想像がつく�
 import { pipe } from "fp-ts/function";
 import { left, right, bindW, map } from 'fp-ts/Either';
 
-const isEven = (n: number) => n % 2 === 0;
-
 function divide(rightNum: number) {
   return function (leftNum: number): Result<RangeError, number> {
     if (rightNum === 0) {
@@ -1185,21 +1174,20 @@ function callerFunc(val: number): Result<RangeError, number> {
 }
 ```
 
-leftがエラーで、rightが正常値だ。rightは右という意味だが、正しいという意味でもあり、かかっている。Result型の順番も`Result<typeof left, typeof right>`となる。
-fp-tsにもエラーをthrowする関数を扱うためのhelper関数がある。上記で利用している`Either`なら`tryCatch`というものが利用できそうだ。
+Result型に属するものはEither、あるいはTaskEitherになるだろう。ここではEither型の例をあげる。leftがエラーで、rightが正常値だ。rightは右という意味だが、正しいという意味でもあり、かかっている。Result型の順番も`Either<typeof left, typeof right>`となる。
+fp-tsにもエラーをthrowする関数を扱うためのhelperがある。上記で利用しているEitherならtryCatch関数が利用できそうだ。
 
 fp-tsについても、もっと様々なことができるので興味がある読者は調べて使ってみてほしい。
 
 ### Style 比較
 様々なエラーハンドリングを見てきたが、Styleとしては、何を選んでもいいだろう。
-関数型プログラミングパラダイムに慣れている開発者はfp-tsを選ぶだろうし、そもそも何も工夫しない標準的な書き方のほうがブレがないというならtry catch styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとGolang Styleで開発したい。）
+関数型プログラミングパラダイムに慣れている開発者はfp-tsを選ぶだろうし、そもそも何も工夫しない標準的な書き方のほうがブレがないというならTry Catch Styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとGolang Styleで開発したい。）
 
 開発者の指向性はそれぞれでいいので論じるつもりはないが、コード量、特に行数についてはfp-tsなり、NeverThrowを使ったほうが少なくなりそうな予感がする。
 筆者は、TypeScriptで自分用のwebアプリケーションを書いたので、そこでGolang Styleとfp-tsでコード量がどうなるかを比較した。Mergeしなかったが、以下がそのPRだ。
 https://github.com/motojouya/croaker/pull/42
 
-コードの詳細は説明しないが、行数にして対象の関数はGolang Styleで39行、fp-tsで38行になった。
-prettierの設定は120文字にしているので、折り返ししすぎているということはないだろう。予想に反して、行数はそれほど変わらなかった。
+コードの詳細は説明しないが、行数にして対象の関数はGolang Styleで39行、fp-tsで38行になった。prettierの設定は120文字にしているので、折り返ししすぎているということはないだろう。予想に反して、行数はそれほど変わらなかった。
 この1例だけで評価するのは公平ではないので結論とはしなくないが、行数の節約のためにfp-tsを導入したいという理由は、少し弱い意見となるかもしれない。
 
 PRを診てもらうほうが比較としてはわかりやすいが、念の為コードも乗せておく。
@@ -1300,9 +1288,9 @@ export const postCroak: PostCroak =
 筆者は基本的にライブラリはwrapして利用するので、wrapするコード上でtry catchし、エラーの形式を変換している。
 また、ライブラリによっては、トランザクションをrollbackするために、`Error class`をthrowしなくてはならないものも存在する。
 
-また、エラーの種類に立ち返ってみると、アプリケーションの利用者が回復不可能なエラーをいちいちハンドリングして、利用者に親切に表示したいだろうか。
-筆者はWebアプリケーションを作る技術者だが、HTTPとして500番台のエラーメッセージを詳細に説明しようとは思わない。むしろログには詳細に出力して、開発者として素早く対応できるようにしておきたい。
-こういった利用者が回復不可能なエラーは、Try Catch Styleで`Error class`をthrowしてトップレベルでcatchし、stack traceを出力しても、`Error class`のみで統一的なコードが書ける。実装が楽なのでGolang Styleで丁寧にreturnするよりもよい。
+また、エラーの種類に立ち返ってみると、アプリケーションの利用者が回復不可能なエラーというのは、そもそも開発者が想定できていないものでもある。
+想定可能なものは利用者が回復可能な形で実装すべきだが、仕様上の検討漏れや、クラウドサービスの障害など、アプリケーションで想定しづらいものも存在する。
+これらは、そもそも想定できないのだから、対処としてはトップレベルの関数でTry Catch Styleで扱うほかない。
 
 つまり、エラーの種類や、発生場所によってはTry Catch Styleで実装する必要があるということだ。
 まとめると、[#エラーの発生場所とハンドリングの場所](#エラーの発生場所とハンドリングの場所)や[#エラーの種類](#エラーの種類)や[#後処理](#後処理)のやり方によって、[#エラーの表現](#エラーの表現)と[#エラーハンドリング](#エラーハンドリング)、場合によって[#returnする値](#returnする値)を検討する必要がある。
