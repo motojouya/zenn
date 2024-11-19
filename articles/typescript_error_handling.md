@@ -829,7 +829,7 @@ type DivisionError = {
   message: string;
 };
 
-function isDivisionError(err: any) err is DivisionError {
+function isDivisionError(err: any): err is DivisionError {
   if (!err || typeof err !== 'object') {
     return false;
   }
@@ -882,11 +882,11 @@ Try Catch Styleと同様、エラーの型は消えるので、type guardで検�
 また、Chainでつなぐと、中間のmiddleFuncもPromiseを意識しなくてはならなくなる。
 
 これなら、return表現をPromiseにしたとしてもtry catch文で処理するほうが現実的だろう。
-これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRailway Oriented Styleの説明のためにも挙げておく。
+これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRailway Oriented Styleと似ており、わかりやすさのためにも挙げておく。
 
 ###  Golang Style
 Golang Styleは筆者が勝手に呼んでいるものなので、他にいい命名があったら教えてほしい。
-Go言語は、エラーをreturnすると聞いたのでそう呼んでいるが、returnするのはUnion型なので、多値というイメージとは違う。
+Go言語はエラーをreturnすると聞いたのでそう呼んでいるが、ここでreturnするのはUnion型なので、Go言語の多値というイメージとは違う。
 Early Return Styleと呼ぼうかとも思ったが、Early ReturnはStyleというよりTechniqueというイメージなので、エラーの表現や返し方を含めて呼ぶにはふさわしくない。
 
 実装は、エラーはclass、あるいは`Error class`で表現してreturnする。returnするのはUnion型だ。
@@ -934,7 +934,6 @@ function topLevelFunc() {
 
   if (result instanceof DivisionError) {
     console.log(result.message);
-    return;
 
   } else {
     console.log(result);
@@ -995,13 +994,13 @@ function divide(left: number, right: number): Result<RangeError, number> {
   if (right === 0) {
     return {
       isOk: false,
-      error: new RangeError('zero divide!');
+      error: new RangeError('zero divide!'),
     };
   }
 
   return {
     isOk: true,
-    data: left / right;
+    data: left / right,
   };
 }
 
@@ -1009,13 +1008,13 @@ function pow(left: number, right: number): Result<RangeError, number> {
   if (left < 0) {
     return {
       isOk: false,
-      error: new RangeError('Imaginary Number Possible!');
+      error: new RangeError('Imaginary Number Possible!'),
     };
   }
 
   return {
     isOk: true,
-    data: Math.pow(left, right);
+    data: Math.pow(left, right),
   };
 }
 ```
@@ -1024,8 +1023,8 @@ function pow(left: number, right: number): Result<RangeError, number> {
 簡易的な実装なら、以下のような感じになるだろう。
 
 ```ts
-function <E1, A1, E2, A2>pipe(func: (data: A1) => Result<E1 | E2, A2>) {
-  return function<>(beforeResult: Result<E1, A1>): Result<E1 | E2, A2> {
+function pipe<E1, A1, E2, A2>(func: (data: A1) => Result<E1 | E2, A2>) {
+  return function (beforeResult: Result<E1, A1>): Result<E1 | E2, A2> {
     if (!beforeResult.isOk) {
       return beforeResult;
     }
@@ -1034,8 +1033,9 @@ function <E1, A1, E2, A2>pipe(func: (data: A1) => Result<E1 | E2, A2>) {
 }
 
 function callerFunc(val: number): Result<RangeError, number> {
-  const divided = pipe((calcVal) => divide(calcVal, 2))(val);
-  const powed = pipe((calcVal) => pow(calcVal, 0.5))(divided);
+  // 筆者が下手なせいで型引数が長いが、型引数は読み飛ばして構わない
+  const divided = pipe<RangeError, number, RangeError, number>((calcVal) => divide(calcVal, 2))({ isOk: true, data: val });
+  const powed = pipe<RangeError, number, RangeError, number>((calcVal) => pow(calcVal, 0.5))(divided);
   return powed;
 }
 ```
@@ -1109,7 +1109,6 @@ function callerFunc(val: number): Result<number, RangeError> {
     .andThen(bind('powed', ({ val }) => pow(0.5)(val)))
     .map(({ divided, powed }) => (divided * powed));
 }
-
 ```
 
 1点補足しておくと、returnする値をNeverThrowで定義したwrapper関数を利用して作っているため、ソースコードのありとあらゆるところで、NeverThrowに依存することになる。
@@ -1123,10 +1122,10 @@ fp-tsはchainでつなぐタイプではない。名前からも想像がつく�
 
 ```ts
 import { pipe } from "fp-ts/function";
-import { left, right, bindW, map } from 'fp-ts/Either';
+import { Either, left, right, bindW, map } from 'fp-ts/Either';
 
 function divide(rightNum: number) {
-  return function (leftNum: number): Result<RangeError, number> {
+  return function (leftNum: number): Either<RangeError, number> {
     if (rightNum === 0) {
       return left(new RangeError('zero divide!'))
     }
@@ -1136,7 +1135,7 @@ function divide(rightNum: number) {
 }
 
 function pow(rightNum: number) {
-  function(leftNum: number): Result<RangeError, number> {
+  return function (leftNum: number): Either<RangeError, number> {
     if (leftNum < 0) {
       return left(new RangeError('Imaginary Number Possible!'))
     }
@@ -1145,10 +1144,10 @@ function pow(rightNum: number) {
   }
 }
 
-function callerFunc(val: number): Result<RangeError, number> {
+function callerFunc(val: number): Either<RangeError, number> {
   return pipe(
-    bindW('divided', ({ val }) => divide(2)(val)),
-    bindW('powed', ({ val }) => pow(0.5)(val)),
+    bindW('divided', () => divide(2)(val)),
+    bindW('powed', () => pow(0.5)(val)),
     map(({ divided, powed }) => (divided * powed)),
   );
 }
