@@ -163,7 +163,7 @@ type NotFoundError = {
 ただし、objectの同一性の判定は、少々コード量が増える。TypeScriptにはType Guardという機能があり、同一性を判定したあとは、型が効くようにしておきたい。
 
 ```ts
-function isNotFoundError(err: any) err is NotFoundError {
+function isNotFoundError(err: any): err is NotFoundError {
   if (!err || typeof err !== 'object') {
     return false;
   }
@@ -227,7 +227,7 @@ type PowError = {
 
 type ArithmeticError = DivisionError | PowError;
 
-function isArithmeticError(err: any) err is ArithmeticError {
+function isArithmeticError(err: any): err is ArithmeticError {
   if (!err || typeof err !== 'object') {
     return false;
   }
@@ -238,7 +238,7 @@ function isArithmeticError(err: any) err is ArithmeticError {
 function divideAndPow(value: number, divide: number, pow: number): number | ArithmeticError {
   if (divide === 0) {
     return {
-      type: 'DIVISION_ERROR';
+      type: 'DIVISION_ERROR',
       left: value,
       right: divide,
       message: 'division error!'
@@ -248,7 +248,7 @@ function divideAndPow(value: number, divide: number, pow: number): number | Arit
   // 正しいバリデーションではないが、簡易的に
   if (value < 0) {
     return {
-      type: 'POW_ERROR';
+      type: 'POW_ERROR',
       left: value,
       right: pow,
       message: 'pow error!'
@@ -326,7 +326,7 @@ class NotFoundError extends Error {
 ```
 
 `Error class`は`message`という項目を引数に取るので、親コンストラクタに与えるほうがよい。
-また、`Error class`はもともと`name`プロパティを持っており`Error`という値なので、区別のために上書きしておくべきだ。
+また、`Error class`はもともと`name`プロパティを持っており、stack traceの出力に使われる。そのままでは`Error`という値なので、区別のために上書きしておくべきだ。
 
 `instanceof`で同一性を判定できるのは`Error class`でないクラスと同様だ。
 良さとしては、throwした際にstack traceを取得できる点だろう。例外発生時にどのようなコールスタックなのか把握できれば、原因特定は格段に楽になる。
@@ -470,28 +470,25 @@ function validateInt(val: number): boolean {
 TypeScriptにはUnion型という表現がある。
 
 ```ts
-const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
-type ErrorString = typeof ERROR_ZERO_DIVIDE;
-
-function divide(left: number, right: number): number | ErrorString {
+function divide(left: number, right: number): number | RangeError {
   if (left === 0) {
-    return ERROR_ZERO_DIVIDE;
+    return new RangeError('zero divide');
   }
 
   return left / right;
 }
 ```
 
-上記は文字列リテラルをエラーの表現とし、returnの表現としてUnion型を用いたものだ。
+上記は`Error class`をエラーの表現とし、returnの表現としてUnion型を用いたものだ。
 上記であれば、以下のようにエラーを判定できる。
 
 ```ts
 const result = divide(12, 3);
-if (result === ERROR_ZERO_DIVIDE) {
+if (result instanceof RangeError) {
   console.log('Zero Divide!');
+} else {
+  console.log(result + 10); // numberとして解釈される
 }
-
-console.log(result + 10); // numberとして解釈される
 ```
 
 これ以降のものもUnion型を使うのだが、以降はTuple型のUnion、objectのUnion、classのUnionという形でUnionに与える型を限定したやり方になる。
@@ -505,14 +502,11 @@ JavaScriptではそんな機能はないが、配列を返すことで擬似的�
 TypeScriptでやるならば、より厳密にTuple型を用いるべきだろう。
 
 ```ts
-const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
-type ErrorString = typeof ERROR_ZERO_DIVIDE;
-
 type Result<E, A> = [E, null] | [null, A];
 
-function divide(left: number, right: number): Result<ErrorString, number> {
+function divide(left: number, right: number): Result<RangeError, number> {
   if (left === 0) {
-    return [ERROR_ZERO_DIVIDE, null];
+    return [new RangeError('zero divide'), null];
   }
 
   const calcResult = left / right;
@@ -521,22 +515,20 @@ function divide(left: number, right: number): Result<ErrorString, number> {
 }
 ```
 
-ただ、Tupleを用いる場合、上記ではたりない。
+以下のように判定できる。
 
 ```ts
 const [err, calcResult] = divide(12, 3);
 if (!err) {
-  console.log(calcResult + 10); // コンパイルエラー TODO 要検証 エラーとならないかも。anyでもいけるので
+  console.log(calcResult + 10);
 }
 ```
 
-上記では、TypeScriptのType Guardが働かず、`typeof calcResult = null | number`と判定されるためだ。
-これは`Result`型にリテラル型の値が入っていないため、`Result`型がタグ付きUnionとして表現されていないためである。
-```ts
-type Result<E, A> = [E, null] | [null, A];
-```
+TODO 要確認 croakerのコードベースの問題？
+ただ、筆者の環境では上記ではType Guardが効かず、`typeof calcResult = null | number`と判定されるケースがあった。
+nullはタグ付きUnion型のdiscriminatorとなれる型なので、判別可能なはずで、原因はわからない。
 
-こうすれば治る。
+ただ、その場合も、明示的にdiscriminatorを入れてやれば治った。
 
 ```ts
 type Result<E, A> = [true, E, null] | [false, null, A];
@@ -554,12 +546,9 @@ type Result<E, A> = [true, E] | [false, A];
 ```
 
 ### object
-TupleであってもUnionにタグがなければならない。とすれば、それはもうobjectでよいのでは？と思った読者もいるだろう。
+Tupleは順番で値の位置を確認するが、名前でアクセスできたほうが便利かもしれない。そういった場合はobjectという選択肢がある。
 
 ```ts
-const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
-type ErrorString = typeof ERROR_ZERO_DIVIDE;
-
 type Result<E, A> =
 | {
   hasError: true,
@@ -570,11 +559,11 @@ type Result<E, A> =
   data: A;
 };
 
-function divide(left: number, right: number): Result<ErrorString, number> {
+function divide(left: number, right: number): Result<RangeError, number> {
   if (left === 0) {
     return {
       hasError: true,
-      error: ERROR_ZERO_DIVIDE,
+      error: new RangeError('zero divide'),
     };
   }
 
@@ -594,19 +583,19 @@ function <E>error(error: E) {
   return {
     hasError: true,
     error,
-  };
+  } as const;
 }
 
 function <A>success(data: A) {
   return {
     hasError: false,
     data,
-  };
+  } as const;
 }
 
-function divide(left: number, right: number): Result<ErrorString, number> {
+function divide(left: number, right: number): Result<RangeError, number> {
   if (left === 0) {
-    return error(ERROR_ZERO_DIVIDE);
+    return error(new RangeError('zero divide'));
   }
 
   const calcResult = left / right;
@@ -629,39 +618,34 @@ helper関数を定義しなくても、classでいいのでは？と思った読
 JavaScriptにおけるclassの実態はFunctionで関数なので、そう発想するのは自然な流れだろう。
 
 ```ts
-const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
-type ErrorString = typeof ERROR_ZERO_DIVIDE;
-
-class Result {}
-
-class CustomError<E = unknown> extends Result {
-  constructor(public readonly error: E) { super() }
+class CustomError<E> {
+  public readonly hasError = true;
+  constructor(public readonly error: E) {}
 }
 
-class Success<A = unknown> extends Result {
-  constructor(public readonly data: A) { super() }
+class Success<A> {
+  public readonly hasError = false;
+  constructor(public readonly data: A) {}
 }
 
-// TODO tupleでもunionを利用してるのだから、別にunionにしてもいいよね。でも型引数はエラーにAはやだし、正常にEはやなので、それで実現できる形で追求したい。
-// hasErrorをリテラルで持ったとして、うまくいけばいいけど
+type Result<E, A> = CustomError<E> | Success<A>;
 
-function divide(left: number, right: number): Result {
+function divide(left: number, right: number): Result<RangeError, number> {
   if (left === 0) {
-    return new CustomError<ErrorString>(ERROR_ZERO_DIVIDE);
+    return new CustomError(new RangeError('zero divide'));
   }
 
   const calcResult = left / right;
 
-  return new Success<number>(calcResult);
+  return new Success(calcResult);
 }
 ```
 
-以下のように判定できるが、Unionを使ったときとあまり変わらないどころか、`Success`に与えている型引数が消えているように見える。
-ともすれば、test関数に与えているdataの型はunknownと判定されそうだが、これ以上はわからなかった。詳しい方がいたら、コメントで教えていただきたい。
+以下のように判定できる。
 
 ```ts
 const result = divide(12, 3);
-if (result instanceof Success) {
+if (!result.hasError) {
   test(result.data);
 }
 
@@ -670,24 +654,17 @@ function test(val: number) {
 }
 ```
 
-筆者としては、仕様が把握できず、おすすめはできないやり方である。
-
-ただ、classで実装することのメリットは、super classで共通のメソッドを用意できることだ。
+classで実装することのメリットは、super classで共通のメソッドを用意できることだ。
 しかし、objectの例でも、当該のobjectを引数に受け取る関数を用意すれば、構造的には同じことができる。
 もちろん、読んだ感触は違ってくるが、そういった関数、メソッドについては、大きな違いがあるわけではないので、ここでは言及しない。
-
-TODO NeverThrowは実装としてはclass。ただし、`Ok<E, A> | Err<E, A>`という型なので、型引数が冗長。これに言及するかは要検討
 
 ### Promise
 Promise型を返すという方法もある。
 
 ```ts
-const ERROR_ZERO_DIVIDE = 'ZERO_DIVIDE' as const;
-type ErrorString = typeof ERROR_ZERO_DIVIDE;
-
 function divide(left: number, right: number): Promise<number> {
   if (left === 0) {
-    return Promise.reject(ERROR_ZERO_DIVIDE);
+    return Promise.reject(new RangeError('zero divide'));
   }
 
   return Promise.resolve(left / right);
@@ -703,7 +680,7 @@ const result = divide(12, 3);
 result
   .then(calcResult => console.log(calcResult + 10))
   .catch(err => {
-    if (err === ERROR_ZERO_DIVIDE) {
+    if (err instanceof RangeError) {
        console.log('zero divide!');
     } else {
        console.log('到達不能');
@@ -722,8 +699,8 @@ try {
   console.log(awaitedResult + 10);
 
 } catch (e) {
-  if (e === ERROR_ZERO_DIVIDE) {
-     console.log('zero divide!');
+  if (e instanceof RangeError) {
+     console.log('zero divide!' + e.message);
   } else {
      console.log('到達不能');
   }
