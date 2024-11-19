@@ -499,7 +499,7 @@ if (result instanceof RangeError) {
 
 ### Tuple
 あとにGolang Styleという表現で、コーディングのスタイルを定義して紹介する。
-それとは直接的に関係ないのだが、Go言語には関数が多値を返せる仕様になっているようだ。多値を返すために、エラーも正常な値も区別してreturnすることができる。
+それとは直接的に関係ないのだが、Go言語には関数が多値を返せる仕様になっているだ。多値を返すために、エラーも正常な値も区別してreturnすることができる。
 
 JavaScriptではそんな機能はないが、配列を返すことで擬似的に表現はできる。
 TypeScriptでやるならば、より厳密にTuple型を用いるべきだろう。
@@ -527,9 +527,7 @@ if (!err) {
 }
 ```
 
-ただ、筆者の環境では上記ではType Guardが効かず、`typeof calcResult = null | number`と判定されるケースがあった。
-nullはタグ付きUnion型のdiscriminatorとなれる型なので、判別可能なはずだ。ただ、true/falseリテラル型のdiscriminatorを別途用意してやると型推論が効くようだった。
-筆者の勉強不足で原因はわからない。
+ただ、筆者の環境ではType Guardが効かないケースがあった。
 
 ```ts
 type Result<A, E> = [null, A] | [E, null];
@@ -545,6 +543,9 @@ function execute<A, E>(func: () => Result<A, E>): E | A {
 // Type 'A | null' is not assignable to type 'A | E'.
 //   Type 'null' is not assignable to type 'A | E'.
 ```
+
+nullはタグ付きUnion型のdiscriminatorとなれる型なので、判別可能なはずだ。上記のケースはnullでない方の型が決定的でないのが原因かもしれないが、筆者の勉強不足で確定的なことはわからなかった。
+true/falseリテラル型のdiscriminatorを別途用意してやると型推論が効くので、対処はできる。
 
 ### object
 Tupleは順番で値の位置を確認するが、名前でアクセスできたほうが便利かもしれない。そういった場合はobjectという選択肢がある。
