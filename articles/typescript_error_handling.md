@@ -527,25 +527,23 @@ if (!err) {
 }
 ```
 
-TODO 要確認 croakerのコードベースの問題？
 ただ、筆者の環境では上記ではType Guardが効かず、`typeof calcResult = null | number`と判定されるケースがあった。
-nullはタグ付きUnion型のdiscriminatorとなれる型なので、判別可能なはずで、原因はわからない。
-
-ただ、その場合も、明示的にdiscriminatorを入れてやれば治った。
+nullはタグ付きUnion型のdiscriminatorとなれる型なので、判別可能なはずだ。ただ、true/falseリテラル型のdiscriminatorを別途用意してやると型推論が効くようだった。
+筆者の勉強不足で原因はわからない。
 
 ```ts
-type Result<E, A> = [true, E, null] | [false, null, A];
-
-const [hasErr, err, calcResult] = divide(12, 3);
-if (hasErr) {
-  console.log(calcResult + 10); // コンパイルエラーにならない
+type Result<A, E> = [null, A] | [E, null];
+function execute<A, E>(func: () => Result<A, E>): E | A {
+  const [err, data] = func();
+  if (err) {
+    return err;
+  } else {
+    return data;
+  }
 }
-```
-
-また、Type Guardが効くので以下のように表現してもよい。
-
-```ts
-type Result<E, A> = [true, E] | [false, A];
+// 上記だと`return data;`に対して以下のメッセージがでる
+// Type 'A | null' is not assignable to type 'A | E'.
+//   Type 'null' is not assignable to type 'A | E'.
 ```
 
 ### object
@@ -1125,7 +1123,7 @@ fp-tsはchainでつなぐタイプではない。名前からも想像がつく�
 
 ```ts
 import { pipe } from "fp-ts/function";
-import { Either, left, right, bindW, map } from 'fp-ts/Either';
+import { Either, left, right, Do, bindW, map } from 'fp-ts/Either';
 
 function divide(rightNum: number) {
   return function (leftNum: number): Either<RangeError, number> {
@@ -1149,6 +1147,7 @@ function pow(rightNum: number) {
 
 function callerFunc(val: number): Either<RangeError, number> {
   return pipe(
+    Do,
     bindW('divided', () => divide(2)(val)),
     bindW('powed', () => pow(0.5)(val)),
     map(({ divided, powed }) => (divided * powed)),
