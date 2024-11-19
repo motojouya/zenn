@@ -310,6 +310,9 @@ class PowError extends ArithmeticError {};
 
 上記の例なら、`error instanceof ArithmeticError`でまとめて判定できるようになる。
 
+もう一点。classはシリアライズができない。ただ、通常のclassはそのままJSONには変換できる。逆にJSONから復活させるのはひと工夫いるだろう。
+TypeScriptはサーバサイド、クライアントサイド両方で使うこともあるので、そのときはひと手間いるだろう。
+
 ### Error class
 classを更に標準ライブラリの`Error class`を継承することもできる。
 ```ts
