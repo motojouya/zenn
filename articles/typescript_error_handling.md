@@ -748,7 +748,7 @@ try {
 ### 握り潰す
 エラーが発生しても問題としないこともある。あるいは、特定の関数の文脈ではエラーであっても、大枠での処理の全体からみれば、エラーでないというケースもある。
 
-## CodingStyle
+# CodingStyle
 今まで、エラーハンドリングの要素について、様々な状況を検討してきた。
 それらの要素には相性があり、お互いを活かせるやり方として、要素を組み合わせたCoding Styleがあるはずだ。
 
@@ -762,7 +762,7 @@ try {
 また、上記の4つの方法は、同期/非同期どちらのコードにも適用できる。
 同期/非同期の違いは、それほど意識するようなものではないので、基本的には同期のパターンのコードで言及していく。
 
-### Try Catch Style
+## Try Catch Style
 最も基本的なやり方だろう。
 `Error class`をエラーとしてthrowして、try catch文でハンドリングする。
 複数のコールスタックを飛び越えて行くので、途中でcatchする必要はない。
@@ -813,7 +813,7 @@ function topLevelFunc() {
 これはすでに述べた通り、エラーの型が表現されていないので、実装を読まなければ型がわからない。またcatch節でそうやって調べた型でType Guardしなければ、messageすら読めないというところだ。
 代わりにmiddleFuncのような中間のコールスタックでは何もする必要がない。
 
-### Promise Chain Style
+## Promise Chain Style
 こちらも型が効かないパターンではあるが、Promiseで扱うこともできる。
 エラーの表現は何でもよいのだが、一旦objectで表現する。エラーはreturnし、returnされるのはPromiseだ。
 
@@ -884,7 +884,7 @@ Try Catch Styleと同様、エラーの型は消えるので、type guardで検�
 これなら、return表現をPromiseにしたとしてもtry catch文で処理するほうが現実的だろう。
 これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRailway Oriented Styleと似ており、わかりやすさのためにも挙げておく。
 
-###  Golang Style
+## Golang Style
 Golang Styleは筆者が勝手に呼んでいるものなので、他にいい命名があったら教えてほしい。
 Go言語はエラーをreturnすると聞いたのでそう呼んでいるが、ここでreturnするのはUnion型なので、Go言語の多値というイメージとは違う。
 Early Return Styleと呼ぼうかとも思ったが、Early ReturnはStyleというよりTechniqueというイメージなので、エラーの表現や返し方を含めて呼ぶにはふさわしくない。
@@ -952,7 +952,7 @@ TypeScript的にUnion型は特徴的だが、エラーをreturnしている以�
 後述するが、Try Catch Styleはどうしても併用する必要があり、したがって`Error class`はそちらで利用したいので区別したほうがわかりやすい。
 区別のために、継承ツリー上に目印になるようなsuper classを定義してもよいが、わざわざ`Error class`を継承する理由もないというのが、単純なclassをオススメする理由だ。
 
-###  Railway Oriented Style
+## Railway Oriented Style
 こちらについては以下の記事に詳しい。
 https://buildersbox.corp-sansan.com/entry/2024/03/26/110000
 
@@ -1052,7 +1052,7 @@ Railwayというのは、始点から終点に流れる複線の線路が、複�
 divideでもpowでも計算ができれば、正常な値がcallerFuncの返り値になる。
 この文章の上では、この概念をRailway Oriented Styleとして定義する。
 
-#### NeverThrow
+### NeverThrow
 NeverThrowはPromise Chain Styleに似た形になるだろう。
 ただPromiseと違い、ちゃんとエラーの型が効くので安心だ。
 
@@ -1116,7 +1116,7 @@ function callerFunc(val: number): Result<number, RangeError> {
 
 紹介したのは基本的な実装方法だが、NeverThrowではもっといろいろなことができるので、興味がある読者は調べて見てほしい。
 
-#### fp-ts
+### fp-ts
 fp-tsはchainでつなぐタイプではない。名前からも想像がつく通り、より関数型パラダイム寄りのライブラリだ。
 こちらには、NeverThrowにはなかった`bind`関数が実装されているので、途中の計算結果を保持するのも簡単だ。
 
@@ -1159,7 +1159,7 @@ fp-tsにもエラーをthrowする関数を扱うためのhelperがある。上�
 
 fp-tsについても、もっと様々なことができるので興味がある読者は調べて使ってみてほしい。
 
-### Style 比較
+## Style 比較
 様々なエラーハンドリングを見てきたが、Styleとしては、何を選んでもいいだろう。
 関数型プログラミングパラダイムに慣れている開発者はfp-tsを選ぶだろうし、そもそも何も工夫しない標準的な書き方のほうがブレがないというならTry Catch Styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとGolang Styleで開発したい。）
 
