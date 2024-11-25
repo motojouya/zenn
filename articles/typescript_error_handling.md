@@ -292,11 +292,64 @@ if (err instanceof NotFoundError) {
 ```
 
 これはobjectと違い、classがTypeScript上だけではなくJavaScript実行時にも型として扱えるためだ。
-ただし`instanceof`は、JavaScriptのprototype継承の仕組みを利用し、prototypeツリーのどこかに存在すればそのclassと判定されてしまうので、誤判定の可能性はある。ただ、これも何らかの開発ルールを設ければ、それほど対処が難しいものでもないだろう。
+ただし、`instanceof`が効くからと言っても、TypeScriptコンパイラが`NotFoundError`という名前で判定していると思ってはいけない。
+
+TypeScriptは構造的部分型という型の判定ロジックを持っているので、同じプロパティを持っている別名のclassは代入可能として判定される。
+これはすでにobjectの段落で述べたものと同じ事象だ。つまり、型判別できるようにしてやれば、問題は解決する。
+
+```ts
+class NumberError {
+  // classNameが'NumberError'型なので判別できるようになった
+  public readonly className = 'NumberError';
+  constructor(public readonly message: string) {}
+};
+
+class StringError {
+  public readonly className = 'StringError';
+  constructor(public readonly message: string) {}
+};
+```
+
+これは以下のようなミスの予防策となる。
+
+```ts
+function someErr(val: number): number | NumberError {
+  if (val < 0) {
+    // NumberErrorとStringErrorは構造が同じなのでreturnできてしまう。
+    // classNameの型がリテラルで違えば判別でき、ここはコンパイルエラーとなる。
+    return new StringError('test!');
+  }
+  return val;
+}
+
+const r = someErr(1);
+
+if (r instanceof NumberError) {
+  console.log('err is NotFoundError with path: ' + r.message);
+}
+```
+
+エラーを継承する場合は、更にひと工夫必要だ。`className`プロパティはstringではなくリテラル型だが、型の変更ができない。つまり実質上書きができない。
+そういったときはhard privateの機能を使えば、継承先から参照できなくなって、変更できるようになる。
+
+```ts
+class NumberError {
+  // #はhard private
+  readonly #className = 'NumberError';
+  constructor(public readonly message: string) {}
+};
+
+class IntegerError extends NumberError {
+  readonly #className = 'IntegerError';
+  constructor(public readonly message: string) { super(message); }
+}
+```
 
 また、継承の仕組みはエラーのカテゴライズに使えるかもしれない。
+
 ```ts
 class ArithmeticError {
+  readonly #className = 'ArithmeticError';
   constructor(
     public readonly left: number,
     public readonly right: number,
@@ -304,13 +357,17 @@ class ArithmeticError {
   ) {}
 };
 
-class DivisionError extends ArithmeticError {};
-class PowError extends ArithmeticError {};
+class DivisionError extends ArithmeticError {
+  readonly #className = 'DivisionError';
+};
+class PowError extends ArithmeticError {
+  readonly #className = 'PowError';
+};
 ```
 
 上記の例なら、`error instanceof ArithmeticError`でまとめて判定できるようになる。
 
-もう一点。classは`JSON.stringify`でjsonに変換するケースが多いと思うが、これだとclass名の情報が落ちてしまう。deserializeの際にひと工夫いるだろう。
+最後に、classは`JSON.stringify`でjsonに変換するケースが多いと思うが、これだとclass名の情報が落ちてしまう。deserializeの際にひと工夫いるだろう。
 TypeScriptはサーバサイド、クライアントサイド両方で使うこともあるので、検討しておきたい。
 
 ### Error class
@@ -579,14 +636,14 @@ function divide(left: number, right: number): Result<RangeError, number> {
 上記関数も、少し記述が冗長になってきた。以下のようにhelperを定義すると楽かもしれない。
 
 ```ts
-function <E>error(error: E) {
+function error<E>(error: E) {
   return {
     hasError: true,
     error,
   } as const;
 }
 
-function <A>success(data: A) {
+function success<A>(data: A) {
   return {
     hasError: false,
     data,
@@ -898,6 +955,7 @@ Early Return Styleと呼ぼうかとも思ったが、Early ReturnはStyleとい
 
 ```ts
 class DivisionError {
+  public readonly errorName = 'DivisionError';
   constructor(
     public readonly left: number,
     public readonly right: number,
@@ -1160,7 +1218,7 @@ fp-tsにもエラーをthrowする関数を扱うためのhelperがある。上�
 fp-tsについても、もっと様々なことができるので興味がある読者は調べて使ってみてほしい。
 
 ## Style 比較
-様々なエラーハンドリングを見てきたが、Styleとしては、何を選んでもいいだろう。
+様々なエラーハンドリングを見てきたが、筆者としては言及した以上の差はないように感じるので、Styleとしては何を選んでもいいと考える。
 関数型プログラミングパラダイムに慣れている開発者はfp-tsを選ぶだろうし、そもそも何も工夫しない標準的な書き方のほうがブレがないというならTry Catch Styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとGolang Styleで開発したい。）
 
 開発者の指向性はそれぞれでいいので論じるつもりはないが、コード量、特に行数についてはfp-tsなり、NeverThrowを使ったほうが少なくなりそうな予感がする。
@@ -1262,7 +1320,7 @@ export const postCroak: PostCroak =
 :::
 
 # 検討
-エラーハンドリングについて、様々なStyleを挙げてきた。筆者はPrivateのコードはGolang Styleで書いているが、実際にはどうしてもTry Catch Styleが発生する場面が存在する。
+エラーハンドリングについて、様々な観点を挙げてきた。筆者はPrivateのコードはGolang Styleで書いているが、実際にはどうしてもTry Catch Styleが発生する場面が存在する。
 
 エラーの発生場所に立ち返ってみると、ライブラリで発生するものは大抵のものが`Error class`をthrowする実装になっている。これを何処かでtry catchしなくてはならない。
 筆者は基本的にライブラリはwrapして利用するので、wrapするコード上でtry catchし、エラーの形式を変換している。
