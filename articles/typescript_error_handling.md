@@ -1344,13 +1344,17 @@ export const postCroak: PostCroak =
 
 # 参考
 何番煎じだとも言われそうなテーマなので、参考にしている文章はたくさんありそうだが、筆者の記憶力が悪くて思い出せない。
-この記事は、筆者が自分向けのアプリケーションを作る際に考えたことをベースに記事を起こしている。開発時に参考にした記事や、記事作成時にに参考にしたものをなるべく列挙する。
+この記事は、筆者が自分向けのアプリケーションを作る際に考えたことをベースに記事を起こしている。開発時に参考にした記事や、記事作成時に参考にしたものをなるべく列挙する。
 
 [MDN](https://developer.mozilla.org/ja/docs/Web)
 
 [TypeScript Deep Dive](https://typescript-jp.gitbook.io/deep-dive)
 
 [サバイバルTypeScript](https://typescriptbook.jp/)
+
+[fp-ts](https://gcanti.github.io/fp-ts/)
+
+[NeverThrow](https://github.com/supermacro/neverthrow)
 
 [TypeScript開発にRailway Orientedを持ち込み、より型安全なエラーハンドリングへ](https://buildersbox.corp-sansan.com/entry/2024/03/26/110000)
 
