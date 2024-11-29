@@ -41,6 +41,9 @@ check関数は値を返さない`void`関数なわけだが、`RangeError`にな
 ではコードを読めばよいという意見もあるかもしれないが、上記の例は限りなく簡単な例であり、実際には深いコールスタックの中で投げられている例外などは把握できようはずもない。したがって、catch節で`instanceof`で判定するものも、関数の中を見ないと把握できないのだ。
 このように関数の型定義を読むだけでは、関数の挙動が想像できないというのが、try catch文の課題だ。
 
+ちなみにJavaの検査例外のようなものを提案するissueもあったりするが、`closed as not planned`なstatusのようだ。
+https://github.com/microsoft/TypeScript/issues/13219
+
 # 整理
 上記の仕様をカバーしようと、プログラマレベルでは様々な工夫をしているようだ。
 どのやり方がよくて、どれが悪いということではないが、それらのやり方をなるべく網羅してテーブルに乗せ、比較検討したい。当然try catchも含める。
@@ -168,7 +171,7 @@ function isNotFoundError(err: any): err is NotFoundError {
     return false;
   }
 
-  return err.url_path === 'string' && err.access_user_id === 'string' && err.message === 'string';
+  return typeof err.url_path === 'string' && typeof err.access_user_id === 'string' && typeof err.message === 'string';
 }
 ```
 
@@ -553,8 +556,7 @@ if (result instanceof RangeError) {
 したがって、ここでUnionとしているのは正常な値の型とエラーの型に一貫性のないものとする。
 
 ### Tuple
-あとにGolang Styleという表現で、コーディングのスタイルを定義して紹介する。
-それとは直接的に関係ないのだが、Go言語には関数が多値を返せる仕様になっているだ。多値を返すために、エラーも正常な値も区別してreturnすることができる。
+Go言語には関数が多値を返せる仕様になっている。多値を返すために、エラーも正常な値も区別してreturnすることができる。
 
 JavaScriptではそんな機能はないが、配列を返すことで擬似的に表現はできる。
 TypeScriptでやるならば、より厳密にTuple型を用いるべきだろう。
@@ -581,26 +583,6 @@ if (!err) {
   console.log(calcResult + 10);
 }
 ```
-
-ただ、筆者の環境ではType Guardが効かないケースがあった。
-
-```ts
-type Result<A, E> = [null, A] | [E, null];
-function execute<A, E>(func: () => Result<A, E>): E | A {
-  const [err, data] = func();
-  if (err) {
-    return err;
-  } else {
-    return data;
-  }
-}
-// 上記だと`return data;`に対して以下のメッセージがでる
-// Type 'A | null' is not assignable to type 'A | E'.
-//   Type 'null' is not assignable to type 'A | E'.
-```
-
-nullはタグ付きUnion型のdiscriminatorとなれる型なので、判別可能なはずだ。上記のケースはnullでない方の型が決定的でないのが原因かもしれないが、筆者の勉強不足で確定的なことはわからなかった。
-true/falseリテラル型のdiscriminatorを別途用意してやると型推論が効くので、対処はできる。
 
 ### object
 Tupleは順番で値の位置を確認するが、名前でアクセスできたほうが便利かもしれない。そういった場合はobjectという選択肢がある。
@@ -813,7 +795,7 @@ try {
 
 - Try Catch Style
 - Promise Chain Style
-- Golang Style
+- Union Return Style
 - Railway Oriented Style
 
 また、上記の4つの方法は、同期/非同期どちらのコードにも適用できる。
@@ -941,11 +923,8 @@ Try Catch Styleと同様、エラーの型は消えるので、type guardで検�
 これなら、return表現をPromiseにしたとしてもtry catch文で処理するほうが現実的だろう。
 これは提案するStyleの中で最も採用理由が薄いものだ。だが、後述するRailway Oriented Styleと似ており、わかりやすさのためにも挙げておく。
 
-## Golang Style
-Golang Styleは筆者が勝手に呼んでいるものなので、他にいい命名があったら教えてほしい。
-Go言語はエラーをreturnすると聞いたのでそう呼んでいるが、ここでreturnするのはUnion型なので、Go言語の多値というイメージとは違う。
-Early Return Styleと呼ぼうかとも思ったが、Early ReturnはStyleというよりTechniqueというイメージなので、エラーの表現や返し方を含めて呼ぶにはふさわしくない。
-
+## Union Return Style
+これは筆者はGolang Styleと呼んでいたが、社内でレビューしてもらっときに、Go言語みたいに多値を返してないので矛盾していると指摘があり、呼び方を変更した。
 実装は、エラーはclass、あるいは`Error class`で表現してreturnする。returnするのはUnion型だ。
 
 - エラー
@@ -1014,7 +993,7 @@ TypeScript的にUnion型は特徴的だが、エラーをreturnしている以�
 こちらについては以下の記事に詳しい。
 https://buildersbox.corp-sansan.com/entry/2024/03/26/110000
 
-Domain Modeling Made Functionalという書籍でRailway Oriented Programmingという名前で紹介されている。
+[関数型ドメインモデリング](https://asciidwango.jp/post/754242099814268928/%E9%96%A2%E6%95%B0%E5%9E%8B%E3%83%89%E3%83%A1%E3%82%A4%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AA%E3%83%B3%E3%82%B0)という書籍でRailway Oriented Programmingという名前で紹介されている。
 筆者は恥ずかしながら未読なので、用語や解説が間違っていたら指摘いただきたい。
 
 Railway Oriented Programmingと銘打つからにはかなり特徴的であり、Programming Paradigmとして、コードベース全体に浸透させるべきものかもしれない。
@@ -1218,21 +1197,21 @@ fp-tsにもエラーをthrowする関数を扱うためのhelperがある。上�
 fp-tsについても、もっと様々なことができるので興味がある読者は調べて使ってみてほしい。
 
 ## Style 比較
-様々なエラーハンドリングを見てきたが、筆者としては言及した以上の差はないように感じるので、Styleとしては何を選んでもいいと考える。
-関数型プログラミングパラダイムに慣れている開発者はfp-tsを選ぶだろうし、そもそも何も工夫しない標準的な書き方のほうがブレがないというならTry Catch Styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとGolang Styleで開発したい。）
+様々なエラーハンドリングを見てきたが、エラーハンドリングの範囲では言及した以上の差はないように感じるので、Styleとしては何を選んでもいいと考える。もっと他のことに目を向けて選択してもいいだろう。
+[関数型ドメインモデリング](https://asciidwango.jp/post/754242099814268928/%E9%96%A2%E6%95%B0%E5%9E%8B%E3%83%89%E3%83%A1%E3%82%A4%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AA%E3%83%B3%E3%82%B0)のようにモデリング含めて実践したければfp-tsなどを選ぶだろうし、ライブラリがエラーをthrowしているのだから標準的な書き方のほうがブレがないというならTry Catch Styleを選ぶだろう。（筆者はコミュニティの場末で、ひっそりとUnion Return Styleで開発したい。）
 
 開発者の指向性はそれぞれでいいので論じるつもりはないが、コード量、特に行数についてはfp-tsなり、NeverThrowを使ったほうが少なくなりそうな予感がする。
-筆者は、TypeScriptで自分用のwebアプリケーションを書いたので、そこでGolang Styleとfp-tsでコード量がどうなるかを比較した。Mergeしなかったが、以下がそのPRだ。
+筆者は、TypeScriptで自分用のwebアプリケーションを書いたので、そこでUnion Return Styleとfp-tsでコード量がどうなるかを比較した。Mergeしなかったが、以下がそのPRだ。
 https://github.com/motojouya/croaker/pull/42
 
-コードの詳細は説明しないが、行数にして対象の関数はGolang Styleで39行、fp-tsで38行になった。prettierの設定は120文字にしているので、折り返ししすぎているということはないだろう。予想に反して、行数はそれほど変わらなかった。
+コードの詳細は説明しないが、行数にして対象の関数はUnion Return Styleで39行、fp-tsで38行になった。prettierの設定は120文字にしているので、折り返ししすぎているということはないだろう。予想に反して、行数はそれほど変わらなかった。
 この1例だけで評価するのは公平ではないので結論とはしなくないが、行数の節約のためにfp-tsを導入したいという理由は、少し弱い意見となるかもしれない。
 
 PRを診てもらうほうが比較としてはわかりやすいが、念の為コードも乗せておく。
 
-:::details Golang Style vs fp-ts
+:::details Union Return Style vs fp-ts
 
-- Golang Style
+- Union Return Style
 ```ts
 export const postCroak: PostCroak =
   ({ db, local, fetcher }) =>
@@ -1320,7 +1299,7 @@ export const postCroak: PostCroak =
 :::
 
 # 検討
-エラーハンドリングについて、様々な観点を挙げてきた。筆者はPrivateのコードはGolang Styleで書いているが、実際にはどうしてもTry Catch Styleが発生する場面が存在する。
+エラーハンドリングについて、様々な観点を挙げてきた。筆者はPrivateのコードはUnion Return Styleで書いているが、実際にはどうしてもTry Catch Styleが発生する場面が存在する。
 
 エラーの発生場所に立ち返ってみると、ライブラリで発生するものは大抵のものが`Error class`をthrowする実装になっている。これを何処かでtry catchしなくてはならない。
 筆者は基本的にライブラリはwrapして利用するので、wrapするコード上でtry catchし、エラーの形式を変換している。
