@@ -431,7 +431,7 @@ class NotFoundError extends CustomError {
 後述するが、`Error class`はthrowすることと相性がいいだろう。そして変換して利用することもある。
 stack traceが取得できることが利点と述べたが、変換時には以下のように、コンストラクタの第二引数に`cause`プロパティを持つオブジェクトを入れる形になる。
 
-```
+```ts
 function divide(left: number, right: number): number {
   if (right === 0) {
      throw new RangeError('zero divide');
