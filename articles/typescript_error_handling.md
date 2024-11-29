@@ -428,6 +428,29 @@ class NotFoundError extends CustomError {
 他にも`Error.prototype.toJSON`に実装することもできるが、できれば標準ライブラリの挙動は換えたくないだろう。
 また、`JSON.stringify`の第二引数に、`replacer`と呼ばれる関数を与えることができ、そこで値を変換して出力することもできる。特にライブラリから投げられる`Error class`の内容をjsonに変換したいのであれば、こちらを使うべきだろう。
 
+後述するが、`Error class`はthrowすることと相性がいいだろう。そして変換して利用することもある。
+stack traceが取得できることが利点と述べたが、変換時には以下のように、コンストラクタの第二引数に`cause`プロパティを持つオブジェクトを入れる形になる。
+
+```
+function divide(left: number, right: number): number {
+  if (right === 0) {
+     throw new RangeError('zero divide');
+  }
+
+  return left / right;
+}
+
+try {
+  const division = divide(10, 2);
+} catch (e) {
+  if (e instanceof RangeError) {
+     throw new Error('some error', { cause: e });
+  }
+}
+```
+
+上記のようにしないと、`RangeError`のstack traceがどこにも残らなくなってしまうためだ。
+
 ## エラーハンドリング
 エラーをどう表現するかは列挙してきたが、それをどうハンドリングするかは、また別の話題だ。
 
@@ -1330,6 +1353,8 @@ export const postCroak: PostCroak =
 [TypeScript Deep Dive](https://typescript-jp.gitbook.io/deep-dive)
 
 [サバイバルTypeScript](https://typescriptbook.jp/)
+
+[JavaScript Primer](https://jsprimer.net/)
 
 [fp-ts](https://gcanti.github.io/fp-ts/)
 
