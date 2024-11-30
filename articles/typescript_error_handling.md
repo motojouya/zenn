@@ -3,7 +3,7 @@ title: "TypeScriptのエラーハンドリングまとめ"
 emoji: "🙌"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ['TypeScript', 'fp-ts', 'NeverThrow']
-published: false
+published: true
 ---
 
 # Intro
