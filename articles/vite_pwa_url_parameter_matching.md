@@ -3,13 +3,15 @@ title: "Vite-PWAでQueryパラメータをつけるとトップページに遷�
 emoji: "🙌"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ['Vite', 'Vite-PWA', 'Workbox']
-published: false
+published: true
 ---
 
 # Intro
 最近ニコニコ漫画でなろう系の漫画ばかり読んでいるのでタイトルが長くなってしまった。
 タイトルの通りの事象が発生し、解決した。ただ、技術的な詳細については迫れておらず、推測にとどまる。
 対象の事例で日本語の記事が見つからなかったので、場当たり的に解決案を記述しておくだけでもいいかなということで記事を起こした。
+
+https://vite-pwa-org.netlify.app/
 
 ## 現象
 Github PagesにdeployしているVite + Reactな静的サイトに、Vite-PWAというVite pluginを導入したら、意図しない挙動が発生した。
