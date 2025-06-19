@@ -34,12 +34,13 @@ for (;;) {
 while文でも実現できるが、for文は上記のようなこともできる。こういった使い方には言及しない。
 
 # a
-- 実装ルール
+- 紹介
   - for文
   - map, filter, reduce
   - find
   - some, every
   - intersect, grouping
+- 使いわけ 
   - immutable文脈ではeachは使わない
   - そもそもIOがあるなら、for文。名前空間を切りたくない。returnしたいなど
 - 関数を切る
@@ -47,6 +48,13 @@ while文でも実現できるが、for文は上記のようなこともできる
   - モデルの振る舞いとしてのリスト操作の想定
   - golangのsambar/loでは多すぎる
   - 実用関数の実装
+- indexを扱う
+  - 他では特定できない
+  - ユーザ入力。react、csv
+- transduce
+  - router、react
+  - filter、map
+  - ちょっと難しい
 - 落ち穂ひろい
   - dbの値はsortして、無限長を想定 -> cascading reducer
   - リスト内包表記
