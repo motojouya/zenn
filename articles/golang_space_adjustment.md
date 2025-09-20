@@ -1,9 +1,9 @@
 ---
-title: "go fmtに逆らって列揃えする方法があるんだぜ"
+title: "go fmtに逆らって列揃えしたんだぜ"
 emoji: "😺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["Go"]
-published: false
+published: true
 ---
 
 `/* */`を挟むだけだぜ

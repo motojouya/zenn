@@ -3,7 +3,7 @@ title: "ソフトウェア設計のマイブーム"
 emoji: "😺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["design", "poem"]
-published: true
+published: false
 ---
 
 まとまってない記事はもっと雑多な感じの別の媒体に書くことにしているのだが、そうは言っても考え方があり、それに基づいてgit repositoryを作るので、参照先になるドキュメントがあったほうがよく、それはやはり技術記事だろうというところで書く。  
