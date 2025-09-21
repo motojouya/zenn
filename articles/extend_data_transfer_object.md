@@ -274,6 +274,8 @@ func (creator UserCreate) Execute(request request.UserCreateRequest) (*entity.Us
 また、`request`packageのメソッドである`GetUser`が`error`を出す可能性があるのであれば、それは入力値の問題だろう。それも`procedure`のコードを見ることで想像できそうだ。  
 バリデーション自体は、`entity`packageの`NewName`関数が担っている。文字数の制限というのは`Name`型の制約だからだ。そのロジック自体はどこにも漏れていない。単に、`request`packageで、`entity`packageの構造体に変換しただけだ。  
 
+個別の項目については`UserCreateRequest`と`User`のコミュニケーションに閉じているので、例えば`Origin`(出身国)のような項目を追加したいときに`procedure`のコードを変更する必要もない。
+
 繰り返しになるが、`User`オブジェクトは項目が3つしかない。項目数が多いものを扱うときには大変になるはずだ。階層構造的な構造体とするのであれば、構造体ごとに変換メソッドを持たせて呼び出すこともできる。  
 `手続きロジック`の中で個別の項目を取り扱うよりは見通しがよくなるはずだ。  
 
