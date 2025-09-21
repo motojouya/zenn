@@ -443,27 +443,95 @@ Repositoryを用いると、Repositoryの内部でDBアクセスモジュール�
 
 ## データモデルの変更に際したケアについて
 Repositoryを否定しているわけではないこは述べたが、Repositoryが担っていた、重要な役割をここで検討しておく必要がある。  
+Repositoryというのは、大抵の場合において関数にInterfaceが定義され、Repository実装を切り替えられるようになっている。本記事で利用している`db`モジュールはDTOを出し入れしながらも、Interfaceを定義して切り替えるというのは可能である。  
+そういった意味では切り替え可能なのだが、他に検討に漏れがないだろうか。  
 
-- DB実装を付け替えたいときにはどうすればいいか
-- goの場合はinterfaceを挟めるが、単なる関数である`FromEntity`は、依存性の注入のようなテクニックを使うには少し面倒
-- つまり、`手続きロジック`はDTOのことは、知っていなくてはならない。DTOにも依存し、DTOの内部構造の変更の影響は受けると考えたほうがよさそう
-- だが、DTOを吐き出すDBアクセス関数をinterfaceとすることは可能なはず
-- 冒頭にDTOは複数の細かい関数を集めた関数に使うと述べた
-- DBであれば、Post、Commentみたいな関連で示せそう。
-  - 実際に例として書いてみる。
-- このPost、CommentをDBから、KVSに切り替えるとして、DTOを吐き出すinterfaceを持つ関数でよいことも、実際に切り替え前後を例とすることで示す
-- これで付け替えが可能になるが、DTOに変換関数以外に、Post、Commentを関連付ける機能も持たせることになる。
-- 役割としては、このDTO同士の関連付けと、変換のみで他に機能は実装すべきではない。なぜなら、入ってくるデータのインタフェース部分を担う責務だから
+実のところ、`db`packageのDTOは、`db`packageのものであるがゆえ、このDTOを利用する`procedure`がDTOに依存しているといえる。  
+もちろん`db`packageのquery発行を行う関数と、DTOを定義するpackageは分離可能であるし、そうすべきであるが、`procedure`がDBのデータを出し入れするDTOを知っているという状態自体は事実である。  
+これは、`FromEntity`関数がreceiverを持たず、単なる関数呼び出しとなっていることからも明らかで、`procedure`package上では、`entity`から`db`のDTOに変換する際に直接`FromEntity`関数を参照しなくてはならない。  
+`ToEntity`関数については、`db.User`型のメソッドなので、ここにinterfaceを定義して、実装を切り替えることは可能だ。  
+
+冒頭の言葉の整理のDTOの解説の段で、DTOを利用する場面において、DTOを返却する関数の中では、ネットワークをまたぐような重たい関数を複数種類呼び出していることが想定されている。  
+DBアクセスにおいても同様だろう。たとえば、投稿を意味する`post`テーブルと、その投稿につける`comment`テーブルを一度に取得するケースを検討してみる。  
+
+```Go
+package db
+
+import (
+    "entity"
+)
+
+type Post struct {
+    Id       int       `db:"id,primarykey"`
+    Content  string    `db:"content"`
+    PostDate time.Time `db:"post_date"`
+    Comments []Comment `db:"-"`
+}
+
+type Comment struct {
+    Id          int       `db:"id,primarykey"`
+    PostId      int       `db:"post_id"`
+    Content     string    `db:"content"`
+    CommentDate time.Time `db:"comment_date"`
+}
+
+func (com Comment) ToEntity() *entity.Comment {
+    return entity.NewComment(com.Id, com.PostId, com.Content, com.CommentDate)
+}
+
+func (post Post) ToEntity() *entity.Post {
+    entityComments = []entity.Comment
+    for _, comment := range post.Comments {
+       entityComment := comment.ToEntity()
+       append(entityComments, *entityComment)
+    }
+
+    return entity.NewPost(post.Id, post.Content, post.PostDate, entityComments)
+}
+
+func GetPostWithComment(postId int) (*Post, error) {
+    post, err := GetPost(id) // DBアクセス
+    if err != nil {
+        return nil, err
+    }
+
+    comments, err := GetCommentsOfPost(post.Id) // DBアクセス
+    if err != nil {
+        return nil, err
+    }
+
+    post.Comments = comments
+
+    return post, nil
+}
+```
+
+ざっとこんな感じだろうか。  
+上記の`GetPostWithComment`を`procedure`packageから呼び出し、`db.Post`を取得した後に、`ToEntry`関数で`entity.Post`に変換する。  
+
+この実装がプラガブルに切り替え可能なのであれば、例えばこの`Post`をKVSから取得するように変更できるはずだ。  
+
+```Go
+func GetPostWithComment(postId int) (*Post, error) {
+    return GetPostFromKVS(id) // KVSアクセス
+}
+```
+
+KVSの場合、Postの中にすでにCommentが内包した状態のjsonを保存していそうだ。データ取得の実装は非常に簡単だ。(更新はめんどうになるが)  
+ここで重要なのは、実装が簡単になることではなく、`GetPostWithComment`の型が変わっていないことが重要だ。  
+仮に以下のようなinterfaceを定義しているのであれば、これは簡単に切り替えが可能であるということだ。  
+```Go
+type PostGetter interface {
+    GetPostWithComment(postId int) (*Post, error)
+}
+```
+
+Repositoryの場合はentityを取り扱うinterfaceを定義するが、本記事の実装パターンにおいてはDTOを取り扱うinterfaceということになる。  
+ちなみに`[]Post`のようにリストを取得する場合、`[]Post`と`[]Comment`がどれとどれが対応するのか、判定する関数も必要になる。DTO同士の関連を表現する必要がでてくるわけだ。  
+したがって、変換関数だけではなく、関連付けを行う関数も必要になるのだが、それ以外の機能は不要だろう。  
 
 ## 締め
-
-
-
-
-
-
-
-
-
-
+この記事の主題は、実装の部分ではあるが、その実装をアーキテクチャ的にどう解釈すべきか、いつこの実装パターンを使うのか、実装を切り替える必要が出てきたときに、どう想定されるのかを解説してきた。  
+筆者個人としては、非常に便利な実装パターンであると考えていて、必要な部分には適用して、仕事でも使っていきたい。  
+読者にも参考になれば幸いだ。  
 
