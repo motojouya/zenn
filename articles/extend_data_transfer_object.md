@@ -149,7 +149,7 @@ func NewUserCreate(repo repository.UserRepository) *UserCreate {
     }
 }
 
-func (creator UserCreate) Execute(request request.UserCreateRequest) (*entity.User, error) {
+func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity.User, error) {
     id, err := idCreator.create()
 
     name, err = entity.NewName(request.Name)
@@ -252,7 +252,7 @@ func NewUserCreate(repo repository.UserRepository) *UserCreate {
     }
 }
 
-func (creator UserCreate) Execute(request request.UserCreateRequest) (*entity.User, error) {
+func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity.User, error) {
     id, err := idCreator.create()
 
     user, err := request.GetUser(id)
@@ -348,16 +348,16 @@ import (
 )
 
 type UserCreate struct {
-    UserRepository repository.UserRepository
+    DB db.UserDB
 }
 
-func NewUserCreate(repo repository.UserRepository) *UserCreate {
+func NewUserCreate(db db.UserDB) *UserCreate {
     return &UserCreate{
-        UserRepository: repo,
+        DB: db,
     }
 }
 
-func (creator UserCreate) Execute(request request.UserCreateRequest) (*entity.User, error) {
+func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity.User, error) {
     id, err := idCreator.create()
 
     user, err := request.GetUser(id)
@@ -366,7 +366,7 @@ func (creator UserCreate) Execute(request request.UserCreateRequest) (*entity.Us
     }
 
     dbUser = db.FromEntity(user)
-    err = db.Insert(&dbUser)
+    err = creator.DB.Insert(&dbUser)
     if err != nil {
         return nil, err
     }
@@ -411,7 +411,39 @@ func GetUser(id int) (*entity.User, error) {
 
 クラス図で記載してみる。  
 ```mermaid
-TODO
+classDiagram
+    class Procedure{
+        +CreateUser(request UserCreateRequest): EntityUser
+    }
+    class DbAccessInterface{
+        +Insert(user DbUser)
+    }
+    class DBAccess{
+        +Insert(user DbUser)
+    }
+    class Controller{
+        +CreateUser(requet Request)
+    }
+    Controller ..> Procedure
+    Procedure ..> DbAccessInterface
+    Controller ..> DBAccess
+    DBAccess ..|> DbAccessInterface
+
+    class EntityUser{}
+    class DbUser{
+        +FromEntity(entity EntityUser) DbUser
+    }
+    class UserCreateRequest{
+        +GetUser(id int) EntityUser
+    }
+    UserCreateRequest ..> EntityUser
+    EntityUser <.. DbUser
+
+    Procedure ..> UserCreateRequest
+    Procedure ..> EntityUser
+    Procedure ..> DbUser
+    Controller ..> UserCreateRequest
+    DBAccess ..> DbUser
 ```
 
 処理の上では、全体の手続きが記載された`procedure`は、interfaceを介しているので、`repository`の実装に依存していない。これは依存性の逆転というテクニックだが、クリーンアーキテクチャの依存関係を構築するためには必要なテクニックだろう。  
