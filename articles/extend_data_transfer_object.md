@@ -63,12 +63,15 @@ Webの記事などはいろいろなものを読んでいるので、そう理�
   - External Interfaces
 
 このあたりは筆者個人では直感的にこの依存関係は理想的と感じる。  
+本記事は、これらすべてのパーツをクリーンアーキテクチャになぞったコードで説明するわけではない。
+ただ、先程も言及した通り、役割ごとに細かくモジュールを分割し、その依存の方向性を調整するという点においては、クリーンアーキテクチャにならったコードを想定する。  
 
 本記事のタイトルは、`Data Transfer Objectを拡張してクリーンアーキテクチャの同心円の図を立体的に捉える`だが、クリーンアーキテクチャの図で最も重要であろう依存関係はそのままに、新しい構造を提案する形になる。  
 クリーンアーキテクチャの同心円の図の傾向は踏襲しつつ、別のクラス図も後半で提示する。  
 
 ### Entityと手続きロジック
-クリーンアーキテクチャの図の中で、本記事で利用させていただく単語は`Entity(Entities)`のみだ。他は筆者が定義が曖昧なので利用は避ける。ただ、`Use Cases`や`Controllers`のようなコードは出てくるだろう。これは単に`手続きロジック`と呼びたい。  
+クリーンアーキテクチャの図の中で、本記事で利用させていただく単語は`Entity(Entities)`のみだ。他は筆者が定義が曖昧なので利用は避ける。  
+ただ、`Use Cases`や`Controllers`のようなコードは出てくるだろう。これは単に`手続きロジック`と呼びたい。  
 
 図によると`Entity`は、どこにも依存しないプレーンなオブジェクトだ。データ構造に付随するロジックを持つ。どこにも依存していないので、気にせず変更することができる。逆に言えば、Entityの変更は他のモジュールにも波及しやすそうではある。  
 `Entity`は、例えば、独自型を持つこともあるかもしれない。Goだと以下のように定義できる。  
@@ -95,6 +98,7 @@ Repositoryに関してもPoEAAの日本語訳を参照させていただく。
 
 DBアクセスモジュールに一枚抽象レイヤを足して、ドメインオブジェクトをやり取りする役割と定義されている。  
 本記事では`Entity`をどこにも依存せず、DBのことを知らないオブジェクトと述べた。したがって、本記事ではRepositoryはEntityを引数、返り値に持ち、DBアクセスなどを抽象化する役割と見ていいだろう。  
+PoEAAの定義では、Repositoryにおいては、`entity`とdbのデータモデルのマッピングがなされるともある。これは記事の後半において、課題感として取り上げる。  
 
 ## 背景としての課題
 用語の整理をしてきたが、ここからが本題になる。  
@@ -489,6 +493,7 @@ classDiagram
     class EntityUser
     class DbUser{
         +FromEntity(entity EntityUser) DbUser
+        +ToEntity() EntityUser
     }
     class UserCreateRequest{
         +GetUser(id int) EntityUser
@@ -519,6 +524,7 @@ classDiagram
     class EntityUser
     class DbUser{
         +FromEntity(entity EntityUser) DbUser
+        +ToEntity() EntityUser
     }
     class UserCreateRequest{
         +GetUser(id int) EntityUser
