@@ -41,7 +41,7 @@ Webの記事などはいろいろなものを読んでいるので、そう理�
 
 ### クリーンアーキテクチャの同心円の図
 クリーンアーキテクチャといえば、この図。この図こそクリーンアーキテクチャ。という印象があるのでは無いだろうか。  
-https://blog.cleancoder.com/uncle-bob/images/2012-08-13-the-clean-architecture/CleanArchitecture.jpg
+![](https://storage.googleapis.com/zenn-user-upload/da28e8fbd49f-20250923.jpg)
 [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)から引用
 
 書籍を読んでいないので厳密な言及はさけさせていただくが、zennにも数多あるクリーンアーキテクチャの解説記事によると、依存関係の方向性を定めることが重要と言及されることが多い。  
@@ -472,7 +472,7 @@ classDiagram
         +Insert(user DbUser)
     }
     class WebAdapter{
-        +CreateUser(requet Request)
+        +CreateUser(request Request)
     }
     WebAdapter ..> Procedure
     Procedure ..> DbAccessInterface
@@ -486,7 +486,7 @@ classDiagram
 
 ```mermaid
 classDiagram
-    class EntityUser{}
+    class EntityUser
     class DbUser{
         +FromEntity(entity EntityUser) DbUser
     }
@@ -516,7 +516,7 @@ classDiagram
         +CreateUser(requet Request)
     }
 
-    class EntityUser{}
+    class EntityUser
     class DbUser{
         +FromEntity(entity EntityUser) DbUser
     }
@@ -527,7 +527,7 @@ classDiagram
     Procedure ..> UserCreateRequest
     Procedure ..> EntityUser
     Procedure ..> DbUser
-    Controller ..> UserCreateRequest
+    WebAdapter ..> UserCreateRequest
     DBAccess ..> DbUser
 ```
 
