@@ -10,7 +10,7 @@ published: false
 
 ## 導入
 ぶっちゃけクリーンアーキテクチャの書籍は1ページも読んだことがないのだが、自分で考えた実装パターンの説明にちょうどよさそうなので、概念を拝借したい。  
-Webの記事などはいろいろなものを読んでいるので、そう理解が間違っているとは思っていないが、間違っていたらご指摘願いたい。  
+Webの記事などは読んでいるので、そう理解が間違っているとは思っていないが、間違っていたらご指摘願いたい。  
 
 ということで、個人的に有用だなと思った実装パターンを検討したので、解説していく。  
 まずは用いる単語を整理した後に、どのような課題を解決したいのか、解決案としての実装パターン、それを適用したときのアーキテクチャ概要などに言及した後に、運用上でてきそうな課題、Pros/Consなどを述べていく。  
@@ -24,15 +24,10 @@ Webの記事などはいろいろなものを読んでいるので、そう理�
 
 リモートファサードのような、ネットワークあるいはプロセス跨ぎのコミュニケーションを行う場面が想定されているようだ。  
 細かい関数を何度も呼び出すのは使用感として悪いので、ファサードを用意し、それらの値をまとめて返却する。その時にまとめる役割がData Transfer Object(以降DTO)であると。  
-
-個人的な解釈としては、内部の細かい関数は関連が弱そうだなという印象がある。つまりDTOの内部の値もそれぞれが関連が弱く、ロジックで扱うような関連の強いデータの集まりとは少し違う印象だ。  
 また、シリアライズ可能ともある。これはロジックを持たない値と捉えても良さそうではある。  
 
 複数人に更新されてしまうので、ソースとして信頼度は低いが、Wikipediaにもページがあり、そちらには`DTO が自身のデータの格納と取り出し機能しか持たない`ともある。  
 [Wikipedia DTO](https://ja.wikipedia.org/wiki/Data_Transfer_Object)  
-
-関連が強くないデータとも述べたが、関連はロジックにおいて必要になるので、Transferするだけと捉えると、関連が強くないのではなく単にプリミティブな値を持つと捉えることもできるかもしれない。鶏が先か卵が先か。  
-また現代においては、OOP以外のパラダイム、モダンな言語機能などもあるので、当時の状況で実装可能なパターンとして存在していたのかもしれない。  
 
 これ以上は詳しい方に解説いただきたいが、よく聞くのは、`ロジックを持たない`、それゆえ`データを運ぶ`役割のみに利用されるという説明だ。  
 
@@ -48,26 +43,14 @@ Webの記事などはいろいろなものを読んでいるので、そう理�
 
 図では4つのレイヤを定義している。  
 - Enterprise Business Rules
-  - Entities
 - Application Business Rules
-  - Use Cases
 - Interface Adapters
-  - Controllers
-  - Gateways
-  - Presenters
 - Frameworks & Drivers
-  - Web
-  - Devices
-  - DB
-  - UI
-  - External Interfaces
 
-このあたりは筆者個人では直感的にこの依存関係は理想的と感じる。  
 本記事は、これらすべてのパーツをクリーンアーキテクチャになぞったコードで説明するわけではない。
-ただ、先程も言及した通り、役割ごとに細かくモジュールを分割し、その依存の方向性を調整するという点においては、クリーンアーキテクチャにならったコードを想定する。  
+ただ、先程も言及した通り、役割ごとに細かくモジュールを分割し、その依存の方向性を調整するという点においては、参考にしたコードを想定する。  
 
 本記事のタイトルは、`Data Transfer Objectを拡張してクリーンアーキテクチャの同心円の図を立体的に捉える`だが、クリーンアーキテクチャの図で最も重要であろう依存関係はそのままに、新しい構造を提案する形になる。  
-クリーンアーキテクチャの同心円の図の傾向は踏襲しつつ、別のクラス図も後半で提示する。  
 
 ### Entityと手続きロジック
 クリーンアーキテクチャの図の中で、本記事で利用させていただく単語は`Entity(Entities)`のみだ。他は筆者が定義が曖昧なので利用は避ける。  
@@ -87,7 +70,7 @@ type User struct {
 }
 ```
 
-このようなときはname項目は`Name`型とすることはできない。
+このようなときはname項目は`Name`型とすることはできないだろう。
 
 `Entity`を取り回して扱うコードを、ここでは`手続きロジック`と呼びたい。`Entity`だけでは実現が難しい動的に確認すべき制約を実現したり、データの保存を指示するなどのロジックを持つものだ。  
 クリーンアーキテクチャの図で言うと、`Use Cases`や`Controllers`に該当しそうだが、本記事では厳密な定義が不要で、かつ依存の方向性のみが明確になっていればよいので、`手続きロジック`と呼ばせてもらう。  
@@ -96,8 +79,8 @@ type User struct {
 Repositoryに関してもPoEAAの日本語訳を参照させていただく。  
 [Repository](https://bliki-ja.github.io/pofeaa/Repository)  
 
-DBアクセスモジュールに一枚抽象レイヤを足して、ドメインオブジェクトをやり取りする役割と定義されている。  
-本記事では`Entity`をどこにも依存せず、DBのことを知らないオブジェクトと述べた。したがって、本記事ではRepositoryはEntityを引数、返り値に持ち、DBアクセスなどを抽象化する役割と見ていいだろう。  
+DBアクセスモジュールに一枚抽象レイヤを足して、ドメインオブジェクトをやり取りする役割と定義されている。つまりDBアクセス自体は別途存在し、それをラップして使いやすくしたものということだ。  
+本記事では`Entity`をどこにも依存せず、DBのことを知らないオブジェクトと述べた。したがって、Repositoryは引数、返り値にEntityを持ち、DBアクセスなどを抽象化する役割と見ていいだろう。  
 PoEAAの定義では、Repositoryにおいては、`entity`とdbのデータモデルのマッピングがなされるともある。これは記事の後半において、課題感として取り上げる。  
 
 ## 背景としての課題
@@ -171,9 +154,12 @@ func NewUserCreate(repo repository.UserRepository) *UserCreate {
 
 func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity.User, error) {
     id, err := idCreator.create()
+    if err != nil {
+        return nil, err
+    }
 
     name, err = entity.NewName(request.Name)
-    if err != nil
+    if err != nil {
         return nil, err
     }
 
@@ -203,7 +189,7 @@ func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity
     user = entity.NewUser(id, name, age)
 ```
 
-筆者はこのコードは粒度があっていないと感じる。`idCreator`がidを発行するのは、なにかどこかからidを生成しているだろう。その後に`request`から値を取り出し、DBに保存するわけだ。  
+筆者はこのコードは粒度が合っていないと感じる。`idCreator`がidを発行するのは、なにかどこかからidを生成しているだろう。その後に`request`から値を取り出し、DBに保存するわけだ。  
 だが、この取り出しという部分に、6行費やしている。
 
 サンプルで用いた`User`構造体は、項目が3つしかないが、これが100項目を持つ構造体だとしたらどうだろうか？100項目がフラットに並ばず、階層構造的になっていたとしても、その部分のハンドリングは非常にめんどうだろう。  
@@ -220,7 +206,7 @@ type UserCreateRequest struct {
 }
 ```
 
-こんな感じだろうか。Go言語は構造体のtag情報(上記では`json:"name"`の部分)を利用してHttp Requestの中身を、構造体にマッピングするライブラリが多く存在する。  
+こんな感じだろうか。Go言語は構造体のtag情報(上記では`json:"name"`の部分)を利用してHttp Requestやjsonの中身を、構造体にマッピングするライブラリが多く存在する。  
 `UserCreateRequest`の場合は、jsonデータを想定しているが、formの値などもマッピングして利用できる。  
 JavaScript/TypeScriptの場合なら、Schema Validatorと呼ばれるものだ。Zodなどのライブラリが有名で、入ってきたjsonデータを特定の構造体の型であるか検査してくれる。  
 
@@ -246,11 +232,11 @@ func (req UserCreateRequest) GetUser(id int) (*entity.User, error) {
 
     age = request.Age
 
-    user = entity.NewUser(id, name, age)
+    return entity.NewUser(id, name, age), nil
 }
 ```
 
-入力データモデルが持っていない`id`は引数に受け付けることで、取得しているが、DTOの機能として`Entity`への変換の役割を持たせている。  
+DTOの機能として`Entity`への変換の役割を持たせている。入力データモデルが持っていない`id`は引数に受け付けることで取得している。  
 具体的には事前に粒度があっていないと述べていた関数をそのままこちらに移してきた形となる。これを利用すると`手続きロジック`はこう書ける。  
 
 ```Go
@@ -338,20 +324,10 @@ func (req UserCreateRequest) GetUser(id int) (*entity.User, error) {
 このあたり、納得感が無いのであれば、それはそれでいいだろう。ただ本記事は、詰め替えるという状況があるうえで、どう工夫したほうがよいか？というテーマだ。  
 
 ## Outboundな処理への適用
-これまでは、入力パラメータに`UserCreateRequest`というデータモデルを適用し、変換するという形をもって実装パターンとしてきた。言うなればシステムに入ってくるInboundなデータ処理で適用させてきたわけだ。  
-これが入力パラメータ(Inbound)ではなく、システムから出ていくOutboundなDB schemaのデータモデルとするのであれば、どのようにできるだろうか？  
+これまでは、入力パラメータに`UserCreateRequest`というデータモデルを適用し、変換関数をもたせるという形をもって実装パターンとしてきた。言うなればシステムに入ってくるInboundなデータ処理で適用させてきたわけだ。  
+これが入力パラメータ(Inbound)ではなく、システムから出ていくDB schemaのデータモデル、つまりOutboundなデータであれば、どのようにできるだろうか？  
 
-これまで`entity`は、どこにも依存しないデータモデルとしてきた。このあたりは考え方次第だが、`entity`自体がDB schemaを表現してもいいだろう。  
-Goの場合は、データをマッピングする文化があるので、以下のようにすることもできる。  
-```Go
-type User struct {
-    Id   int    `db:"id"`
-    Name string `db:"name"`
-    Age  int    `db:"age"`
-}
-```
-
-その場合、`Name`が`string`となっているのは大きな違いでもあるが、そもそもこの記事は、`Entity`はどこにも依存しない、つまりDB Schemaのことを知らないという前提の記事だ。このことは、詰め替えの是非について既に述べた。  
+そもそもこの記事は、`Entity`はどこにも依存しない、つまりDB Schemaのことを知らないという前提の記事だ。このことは、詰め替えの是非について既に述べた。  
 では今度は、`request`packageと同様に、DBのデータモデルに、Entityへ変換する関数を持たせてみる。  
 
 ```Go
@@ -370,8 +346,8 @@ type User struct {
 func FromEntity(entity *entity.User) *User {
     return &User{
         Id:   entity.Id,
-        Name: string(entity.Id),
-        Age:  entity.Id,
+        Name: string(entity.Name),
+        Age:  entity.Age,
     }
 }
 
@@ -428,7 +404,8 @@ func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity
 ```
 
 つまり解釈としては、RepositoryがEntityを出し入れするというのであれば、RepositoryというのはDBアクセス役割の`Insert`関数と、変換役割の`FromEntity`関数を混ぜて使っているものと考えることもできそうだ。  
-仮にdbに`ToEntity`関数を実装しないのであれば、`repository#GetUser`はこんな実装なのではないだろうか。  
+
+仮にdbに`ToEntity`関数を実装しないのであれば、データ取得を行う`repository#GetUser`はこんな実装なのではないだろうか。  
 
 ```Go
 package repository
@@ -462,7 +439,7 @@ func GetUser(id int) (*entity.User, error) {
 ここでは、一旦実装から視点を遠ざけて、この構造体で実現しているアーキテクチャを明らかにしていきたい。  
 
 クラス図で記載してみる。  
-まず、処理の流れを示す手続き部分のコードはこうなるだろう。  
+まず、処理の流れを示す手続き部分のモジュールの依存関係だ。  
 
 ```mermaid
 classDiagram
@@ -484,9 +461,9 @@ classDiagram
 ```
 
 処理の上では、全体の手続きが記載された`procedure`は、interfaceを介しているので、`DBAccess`の実装に依存していない。これは依存性の逆転というテクニックだが、クリーンアーキテクチャの依存関係を構築するためには必要なテクニックだろう。  
-ここまではクリーンアーキテクチャの同心円の図が示す依存の方向だ。  
+上記のクラス図は、クリーンアーキテクチャの同心円の図が示す依存の方向を守っている構成だ。  
 
-これが更にデータモデルでも、同様の構造が見て取れる。  
+これが更にデータモデルでも、依存の方向が同じになる。  
 
 ```mermaid
 classDiagram
@@ -502,9 +479,11 @@ classDiagram
     EntityUser <.. DbUser
 ```
 
+`UserCreateRequest`はInboundなデータで、`DBUser`はOutboundなデータであり、それぞれが`WebAdapter`、`DBAccess`に対応している。  
 `EntityUser`はどこにも依存がないが、`DBUser` `UserCreateRequest`は`EntityUser`を知らなくてはならない。  
+
 手続き的なコードだけではなく、データモデル上も同様の依存の方向となる。  
-依存関係として、手続き的なレイヤが増えるのではなく、手続き上も、モデル上も依存の方向性が揃った状態でレイヤが現れる。  
+前段で示した例はRepositoryのレイヤも消えるので、レイヤ階層は浅くなるが、モデルどうしにもレイヤの考え方が適用される。  
 
 筆者は、これを示して、クリーンアーキテクチャの同心円の図を立体的に捉える。と述べている。タイトル回収だ。  
 ちなみに、手続きコードからモデルへはこのような依存関係となっている。  
@@ -561,9 +540,9 @@ Repositoryというのは、大抵の場合において関数にInterfaceが定�
 そういった意味では切り替え可能なのだが、他に検討に漏れがないだろうか。  
 
 実のところ、`手続きロジック`はDTOに依存している。もちろん、`db`packageのquery発行を行う機能と、DTOを分離していれば、`db`には依存しない。  
-これは、`FromEntity`関数がreceiverを持たず、単なる関数呼び出しとなっていることからも明らかで、`procedure`package上では、`entity`から`db`のDTOに変換する際に直接`FromEntity`関数を参照しなくてはならない。  
-`ToEntity`関数については、`db.User`型のメソッドなので、ここにinterfaceを定義して、実装を切り替えることは可能だ。  
-つまり、筆者がサンプルコードに示したDTO自体は、切り替えることができない。これは留意しておく必要がある。  
+これは先に示したクラス図もそうなっているし、`FromEntity`関数がreceiverを持たず、単なる関数呼び出しとなっていることからも明らかで、`procedure`package上では、`entity`から`db`のDTOに変換する際に直接`FromEntity`関数を参照しなくてはならない。  
+`ToEntity`関数については、`db.User`型のメソッドなので、ここにinterfaceを定義して、実装を切り替えることは可能だが。  
+つまり、筆者がサンプルコードに示したDTO自体は、interfaceを介して切り替えることができない。これは留意しておく必要がある。  
 
 冒頭の言葉の整理のDTOの解説の段で、DTOを利用する場面において、DTOを返却する関数の中では、ネットワークをまたぐような重たい関数を複数種類呼び出していることが想定されている。  
 DBアクセスにおいても同様だろう。これは検討しておく必要がありそうだ。  
@@ -645,11 +624,48 @@ type PostGetter interface {
 ```
 
 Repositoryの場合はentityを取り扱うinterfaceを定義するが、本記事の実装パターンにおいてはDTOを取り扱うinterfaceということになる。  
-ちなみに`[]Post`のようにリストを取得する場合、`[]Post`と`[]Comment`がどれとどれが対応するのか、判定する関数も必要になる。DTO同士の関連を表現する必要がでてくるわけだ。  
+
+ちなみに`[]Post`のようにリストを取得する場合、`[]Post`と`[]Comment`のどの要素が対応するのか、判定する関数も必要になる。DTO同士の関連を表現する必要がでてくるわけだ。  
 したがって、変換関数だけではなく、関連付けを行う関数も必要になる。  
+
+```Go
+func IsRelate(post Post, comment Comment) bool {
+    return post.Id == comment.PostId
+}
+
+type Related[B any, L any] struct {
+    branch B
+    leaves []L
+}
+
+func Relate[B any, L any](branches []B, leaves []L, isRelate func(B, L) bool) []Related[B, L] {
+
+    var related = make([]Related[B, L], 0, len(branches))
+
+    for _, branch := range branches {
+        var workingBranch = branch
+        var matchedLeaves []L
+
+        for _, leaf := range leaves {
+            if isRelate(branch, leaf) {
+                matchedLeaves = append(matchedLeaves, leaf)
+            }
+        }
+
+        related = append(related, Related[B, L]{
+            branch: branch,
+            leaves: matchedLeaves,
+        })
+    }
+
+    return related
+}
+```
+
+上記の例で言えば、`Relate`関数は共通関数とし、モデルごとに実装するのは`IsRelate`関数だけでいいだろう。  
+今回、紹介したDTOを拡張した実装パターンに必要な関数は、`Entity`との変換関数と、DTO同士を関連付ける関数のみで十分なはずだ。他の関数が生えそうになったときは、実装が間違っている可能性があるので注意したい。  
 
 ## 締め
 この記事の主題は、実装の部分ではあるが、その実装をアーキテクチャ的にどう解釈すべきか、いつこの実装パターンを使うのか、実装を切り替える必要が出てきたときに、どう想定されるのかを解説してきた。  
-筆者個人としては、非常に便利な実装パターンであると考えていて、必要な部分には適用して、仕事でも使っていきたい。  
-読者にも参考になれば幸いだ。  
+筆者個人としては便利な実装パターンであると考えていて、必要な部分には適用して使っていきたい。読者にも参考になれば幸いだ。  
 
