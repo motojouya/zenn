@@ -156,14 +156,14 @@ func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity
         return nil, err
     }
 
-    name, err = entity.NewName(request.Name)
+    name, err := entity.NewName(request.Name)
     if err != nil {
         return nil, err
     }
 
-    age = request.Age
+    age := request.Age
 
-    user = entity.NewUser(id, name, age)
+    user := entity.NewUser(id, name, age)
 
     if err = creator.UserRepository.Save(user); err != nil {
         return nil, err
@@ -223,12 +223,12 @@ type UserCreateRequest struct {
 }
 
 func (req UserCreateRequest) GetUser(id int) (*entity.User, error) {
-    name, err = entity.NewName(req.Name)
-    if err != nil
+    name, err := entity.NewName(req.Name)
+    if err != nil {
         return nil, err
     }
 
-    age = request.Age
+    age := req.Age
 
     return entity.NewUser(id, name, age), nil
 }
@@ -297,18 +297,18 @@ import (
 )
 
 type UserCreateRequest struct {
-    Name string `json:"name"`
-    Age  int    `json:"age"`
+    Name string  `json:"name"`
+    Age  int     `json:"age"`
     preview bool `json:"is_preview"`
 }
 
 func (req UserCreateRequest) GetUser(id int) (*entity.User, error) {
-    name, err = entity.NewName(req.Name)
-    if err != nil
+    name, err := entity.NewName(req.Name)
+    if err != nil {
         return nil, err
     }
 
-    age = request.Age
+    age := req.Age
 
     user = entity.NewUser(id, name, age)
 }
@@ -391,8 +391,8 @@ func (creator UserCreate) CreateUser(request request.UserCreateRequest) (*entity
         return nil, err
     }
 
-    dbUser = db.FromEntity(user)
-    err = creator.DB.Insert(&dbUser)
+    dbUser := db.FromEntity(user)
+    err = creator.DB.Insert(dbUser)
     if err != nil {
         return nil, err
     }
@@ -576,10 +576,10 @@ func (com Comment) ToEntity() *entity.Comment {
 }
 
 func (post Post) ToEntity() *entity.Post {
-    entityComments = []entity.Comment
+    var entityComments []entity.Comment
     for _, comment := range post.Comments {
        entityComment := comment.ToEntity()
-       append(entityComments, *entityComment)
+       entityComments = append(entityComments, *entityComment)
     }
 
     return entity.NewPost(post.Id, post.Content, post.PostDate, entityComments)
@@ -647,7 +647,6 @@ func Relate[B any, L any](branches []B, leaves []L, isRelate func(B, L) bool) []
     var related = make([]Related[B, L], 0, len(branches))
 
     for _, branch := range branches {
-        var workingBranch = branch
         var matchedLeaves []L
 
         for _, leaf := range leaves {
