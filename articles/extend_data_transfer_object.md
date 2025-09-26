@@ -3,7 +3,7 @@ title: "Data Transfer Objectを拡張してクリーンアーキテクチャの�
 emoji: "😺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["設計"]
-published: false
+published: true
 ---
 
 ## 導入
