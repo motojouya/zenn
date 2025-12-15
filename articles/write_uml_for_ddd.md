@@ -275,7 +275,7 @@ Layerの切り方は色々とあるが、とりあえず、簡単に以下のよ
 ドメイン領域はドメインを表現するもの、アプリケーション領域は、ドメインを利用して機能を実現するものだ。  
 AggregateとLayerは、筆者は以下のマトリクスで考えている。  
 
-- 図
+![](/images/aggregate_layer.jpg)
 
 図の列がAggregate、行がLayerだ。筆者の視点では、Package By LayerとPackage By Aggregateは、上記の図で横線を優先したか、縦線を優先したかなのだ。  
 そして矢印は依存関係を表現している。ControllerはRepositoryを使い、RepositoryはModelを利用している。また集約同士の依存関係もModel部分で表現されているものだ。  
