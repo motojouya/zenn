@@ -3,7 +3,7 @@ title: "UMLのクラス図でドメイン駆動設計の集約を表現する"
 emoji: "😺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["設計"]
-published: false
+published: true
 ---
 
 [OPENLOGIアドベントカレンダー2025](https://qiita.com/advent-calendar/2025/openlogi)の23日目の記事です。
