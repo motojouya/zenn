@@ -199,7 +199,119 @@ type SqlExecutor interface {
 }
 ```
 
+上記すべて解説するのは長くなりすぎるので、重要なものをいくつかピックアップする。
+
+### Get/Insert/Update/Delete
+構造体のTagに、取得のカラム名を定義しておけば、その構造体を操作するようにテーブルの操作ができる。  
+どれも難しくないはずだ。どれも構造体だったり、key情報だけを引数にとる。  
+
+簡単なSQLなら、すべて実現可能なことがわかる。  
+どのテーブルであっても、これらの関数で事足りる。  
+
+```go
+type Post struct {
+  Id       int    `db:"id"`
+  Title    string `db:"title"`
+  Content  string `db:"content"`
+  Tag      string `db:"tag"`
+  AuthorId string `db:"author_id"`
+}
+
+post := Post{
+  Id:       1,
+  Title:    "GoのORM",
+  Content:  "gorpとgoquサイコー",
+  Tag:      "ORM",
+  AuthorId: 3,
+}
+
+err = sqlExecuter.Insert(&post)
+if err != nil {
+	return nil, err
+}
+
+// 第２引数以降に主キーの値を指定する。複合主キーの場合も受け付けられる。
+result, err = sqlExecuter.Get(&Post{}, 1)
+if err != nil {
+	return nil, err
+}
+
+_, err = sqlExecuter.Update(&post)
+if err != nil {
+	return nil, err
+}
+
+_, err = sqlExecuter.Delete(&post)
+if err != nil {
+	return nil, err
+}
+```
+
+### Select
+難しいクエリはSelectにsqlを渡して実現する。こちらも構造体にbindしてくれるのは同じだ。  
+
+```go
+var posts []Post
+_, err = sqlExecuter.Select(&records, "select * from post where author_id = ?", author_id)
+if err != nil {
+	return nil, err
+}
+```
+
+upper/dbというライブラリも、このように必要十分なAPIを提供しているし、自らをData Access Layerとなのっているので、筆者の考えにfitしそうだ。  
+だが、upper/dbは、後述するgoquのようなsqlを組み立てる関数APIも存在する。だが、goquほどの表現力がないので、中途半端にsqlでクエリのパーツを管理しなくてなならない。  
+gorpはその点、sqlを組み立てるためのAPIは無いので潔い。  
+
 ## goqu
+gorpはsqlを組み立てる機能がないので、goquで組み立てる。  
+goquは、文字列をカラム名か、値かを指定する関数が別々にあったり、単なる"="文字列ではなく`Eq`関数があるので、ある程度まで型安全に組み立てることが可能だ。  
+
+```go
+import (
+	"github.com/doug-martin/goqu/v9"
+)
+
+query := goqu.Dialect("postgres").Select(
+	goqu.I("p.id"),
+	goqu.I("p.title"),
+	goqu.I("p.content"),
+	goqu.I("p.tag"),
+	goqu.I("p.author_id"),
+).From(goqu.T("post").As("p")).
+	Where(
+		goqu.I("p.auther_id").Eq(autherId),
+		goqu.I("p.tag").Eq(tag),
+	).
+	Order(goqu.I("p.id").Desc())
+
+sql, args, err := query.Prepared(true).ToSQL()
+if err != nil {
+	return nil, err
+}
+
+var posts []Post
+_, err = sqlExecuter.Select(&posts, sql, args...)
+if err != nil {
+	return nil, err
+}
+```
+
+sqlcのようにsqlを書いてgenerateするライブラリもあるが、筆者はgoquのようなクエリビルダスタイルのものが好みだ。  
+generateするのは、開発に1ステップ挟むことなので、体験が悪いイメージがある。  
+また、動的にクエリのwhere句を変更するケースなどでは、Go言語で操作できるようが、Goでif分岐させられるので書きやすい。  
+
+## 拡張
+gorpのinterfaceは非常にきれいに設計されているが、筆者としては少し足りない。  
+そのため、gorpの`SqlExecutor`を拡張して使った。  
+拡張したのは3つの関数だが、そのうちの一つは不要だったかもしれない。ただ、3つとも紹介しておく。  
+
+### GetIn
+
+### GetMax
+
+### GetPaging
+
+### interface
 
 
 
