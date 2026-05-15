@@ -298,28 +298,381 @@ if err != nil {
 
 sqlcのようにsqlを書いてgenerateするライブラリもあるが、筆者はgoquのようなクエリビルダスタイルのものが好みだ。  
 generateするのは、開発に1ステップ挟むことなので、体験が悪いイメージがある。  
-また、動的にクエリのwhere句を変更するケースなどでは、Go言語で操作できるようが、Goでif分岐させられるので書きやすい。  
+また、動的にクエリのwhere句を変更するケースなどでは、Go言語で書ける方が、Goでif分岐させられるので表現しやすい。  
 
 ## 拡張
 gorpのinterfaceは非常にきれいに設計されているが、筆者としては少し足りない。  
 そのため、gorpの`SqlExecutor`を拡張して使った。  
 拡張したのは3つの関数だが、そのうちの一つは不要だったかもしれない。ただ、3つとも紹介しておく。  
 
+### interface
+まず、interfaceは以下の感じで定義する。Goのembedは非常に便利で、拡張が簡単だ。  
+
+```go
+type Executor interface {
+	gorp.SqlExecutor
+	GetIn(records interface{}, conditions map[string][]interface{}, forLock bool) ([]interface{}, error)
+	GetMax(records interface{}, maxColName string, conditions map[string]interface{}) (int, error)
+	GetPaging(records interface{}, conditions map[string]interface{}, orders []Order, pager Pager) ([]interface{}, error)
+}
+```
+
 ### GetIn
+Gorpでも`Get`メソッドがあって、十分に便利なのだが、筆者としては以下の機能が足りない。
+- ロックかけられるようにしたい。
+- 複数の主キーを指定して、一気にとってきたい。
+  構造体が、他の構造体のリストを持っているときに、idを複数指定して一気にとってくることでN+1問題を解消しておきたいから。
+
+複数の主キーを指定するのは、実は結構パターンがある。  
+実のところ、主キーではなく、ユニークキーで取ってきたいという部分もあるので、schema情報から簡単に導くことができない。  
+複合主キーの場合、sqlのwhere句にorが入ってくる可能性もあるのだが、それは若干sqlの複雑さが増している。  
+
+というところで、以下のように考えた。
+- sqlのwhere句は、and条件とin句のみ利用する
+- カラム名と値のリストを紐づけて引数として受け付ける
+
+複合主キーの場合、特定のカラムの中で、別のカラムがユニークになっているケースが多い。  
+例えば、特定のユーザの中で、投稿がユニークになっているとか。  
+つまり機能的にも特定のユーザというスコープで取得されるというケースが多いように考えた。  
+そうなると、or句でつなぐ必要はあまりなく、以下のようなsqlで十分ということになる。  
+
+```sql
+select *
+  from post
+ where author_id in (?)
+   and post_id in (?, ?, ?)
+     ;
+```
+上記であれば、and条件とin句のみで実現できる。
+author_idに与える値を複数にするとbugが生まれやすいのはそうだが、便利さと安全性は時としてトレードオフとなるので、ここは便利さを優先する。  
+
+この前提で以下のように関数を切った。  
+
+```go
+func GetIn(executer gorp.SqlExecutor, records interface{}, conditions map[string][]interface{}, forLock bool) ([]interface{}, error) {
+	tableMap, err := tableFor(executer, records) // tableForはGoの構造体から、table情報を引っ張る関数。後で解説
+	if err != nil {
+		return nil, errors.New("record is not table")
+	}
+
+	selectExpressions := make([]interface{}, 0, len(tableMap.Columns))
+	for _, col := range tableMap.Columns {
+		if col.Transient {
+			continue
+		}
+		selectExpressions = append(selectExpressions, goqu.C(col.ColumnName))
+	}
+
+	counter := 0
+	whereExpressions := make([]goqu.Expression, len(conditions))
+	for key, condition := range conditions {
+		exitCol := false
+		for _, col := range(tableMap.Columns) {
+			if col.ColumnName == key {
+				exitCol = true
+			}
+		}
+		if !exitCol {
+			return nil, errors.New("record is not table")
+		}
+
+		whereExpressions[counter] = goqu.C(key).In(condition)
+		counter++
+	}
+
+	query := goqu.Dialect("postgres").
+		Select(selectExpressions...).
+		From(goqu.T(tableMap.TableName)).
+		Where(whereExpressions...)
+
+	if forLock {
+		query = query.ForUpdate(goqu.Wait)
+	}
+
+	sql, args, err := query.Prepared(true).ToSQL()
+	if err != nil {
+		return nil, err
+	}
+
+	return executer.Select(records, sql, args...)
+}
+```
+
+引数が以下になっている
+- conditions map[string][]interface{}
+- forLock bool
+
+`forLock`はロックをかけるためのものだ。  
+`conditions`にカラム名と、in句に指定する値のsliceを与える。  
+genericsが使えると良かったのだが、それは今後のGo言語の進化に期待したい。  
+
+これで主キー、あるいはユニークキーで複数のレコードを引っ張るということが、簡単に実現できるようになる。  
+筆者が直近で個人開発したプロジェクトでは、主キーで複数レコードを引っ張ってくることが頻繁にでてくるので、それが簡単に行えるものが必要だった。  
+
+逆に、複合主キーでor句を条件としないといけないsqlは1度だけでてきた。1度だけならば、単純にそれ専用のsqlをかいて、しっかり単体テストを書いて検証するほうがいいだろう。  
+sqlをgoquで書き下して、単体テスト可能にする書き方も、後で解説する。  
 
 ### GetMax
+GetInはかなり利用しやすいし、適用できる場面が簡単に想像できるが、この`GetMax`はプロジェクトによって、必要性が変わってくるものだ。  
+ここまで主キーでデータベース操作をすることを論じてきたが、主キーの発行時の挙動も気になるところだ。  
+どれが優れているかはここでは言及しないが、uuidやintを使ったり、またデータベース上での発行、アプリケーション上での発行といくつかパターンがある。  
+今回、筆者はキーの発行はアプリケーションとした。またuuidを使うケースと、intを使うケースを定義して使い分ける形をとった。  
+
+uuidの発行は、基本的に衝突しないことを前提として発行するので、データベースに問い合わせる必要がない。  
+逆にintの場合は、データベースに問い合わせて最大値を取得しなければならない。  
+筆者は、特定のグループの中で、いくつかのリソースがある場合に、複合主キーとして、`グループコード + int`という構成をとった。  
+特定のテーブルの単一の主キーとして、アプリケーションで発行するintのキーは衝突の可能性としてもっと考慮が必要だが、グループコード内であれば、ユーザがグループ内での活動をコントロールできるので、衝突時のハンドリングを外部化できる。  
+
+こういったケースは、マルチテナントなアプリケーションでは、まぁまぁあるケースだと思うが、まったく見たことがないというプログラマもいるだろう。  
+この`GetMax`が必要と感じるかは、利用者次第である。  
+
+`GetIn`と違って、グループコードの一致を条件とすればいいので、where句の条件はIn句ではなくequalになる。  
+ロックは不要だが、取得したいintカラムの指定が別途必要だ。  
+以下のようなsqlを実行したい。  
+
+```sql
+select coalesce(max(post_id), 0) from post where author_id = ?
+```
+
+```go
+func GetMax(executer gorp.SqlExecutor, records interface{}, maxColName string, conditions map[string]interface{}) (int, error) {
+	tableMap, err := tableFor(executer, records) // tableForはGoの構造体から、table情報を引っ張る関数。後で解説
+	if err != nil {
+		return 0, errors.New("record is not table")
+	}
+
+	existColName := false
+	for _, col := range(tableMap.Columns) {
+		if col.ColumnName == maxColNamekey {
+			exitCol = true
+		}
+	}
+	if !existColName {
+		return 0, errors.New(maxColName + " is not exist column in table")
+	}
+
+	counter := 0
+	whereExpressions := make([]goqu.Expression, len(conditions))
+	for key, condition := range conditions {
+		whereExpressions[counter] = goqu.C(key).Eq(condition)
+		counter++
+	}
+
+	sql, args, err := Dialect.
+		Select(goqu.COALESCE(goqu.MAX(maxColName), 0)).
+		From(goqu.T(tableMap.TableName)).
+		Where(whereExpressions...).
+		Prepared(true).
+		ToSQL()
+	if err != nil {
+		return 0, err
+	}
+
+	max, err := executer.SelectInt(sql, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(max), nil
+}
+```
+
+これで、intカラムの最大値を取得し、無事にアプリケーションにて主キーの発行が可能になる。  
 
 ### GetPaging
+ここまで主キーでの操作に対して関数を切ってきたが、特定のテーブルに対してequal条件だけで検索できたら便利そうだし、頻出しそうだと考えた。  
+そこで`GetPaging`という関数を切ったのだが、これは今回開発したプロジェクトで4回ほどの利用だった。  
+あるといえばあるし、無いといえばないという感じで微妙なところだ。  
 
-### interface
+あとから考えたのだが、主キー以外での操作は、あとからwhere句に条件が追加され拡張されていきやすい。  
+拡張したいという要求があった瞬間に、`GetPaging`の存在意義がなくなり、sqlをきちんと定義する関数を別に切らなくてはならない。  
+正直`GetPaging`は作らなくてもよかったという気持ちになってきている。  
+
+とはいえ、こういった懸案事項も参考になるかと思うので、記しておく。  
+
+この関数は、主キーを指定して特定のリソースを取ってくるのではなく、条件でリストを絞り込んで、取れる分だけ取ってくるので、order by句やpagingが必要だ。  
+よって以下の構造体を用意している。  
+
+```go
+type Pager struct {
+	Cursor int
+	Limit  int
+}
+
+type Order struct {
+	Column    string
+	Ascending bool
+}
+```
+
+引数には、`conditions map[string]interface{}`も受け付ける。  
+これは`GetIn`の引数の`conditions map[string][]interface{}`ではなく、`GetMax`のconditionsと同じでequal文を表現する。  
+以下のようなsqlが想定される。  
+
+```sql
+select * from post where title = ? and tag = ? order by author_id desc limit 1 offset 10;
+```
+
+```go
+func GetPaging(executer gorp.SqlExecutor, records interface{}, conditions map[string]interface{}, orders []Order, pager Pager) ([]interface{}, error) {
+	tableMap, err := tableFor(executer, records) // tableForはGoの構造体から、table情報を引っ張る関数。後で解説
+	if err != nil {
+		return nil, errors.New("record is not table")
+	}
+
+	selectExpressions := make([]interface{}, 0, len(tableMap.Columns))
+	for _, col := range tableMap.Columns {
+		if col.Transient {
+			continue
+		}
+		selectExpressions = append(selectExpressions, goqu.C(col.ColumnName))
+	}
+
+	counter := 0
+	whereExpressions := make([]goqu.Expression, len(conditions))
+	for key, condition := range conditions {
+		exitCol := false
+		for _, col := range(tableMap.Columns) {
+			if col.ColumnName == key {
+				exitCol = true
+			}
+		}
+		if !exitCol {
+			return nil, errors.New("record is not table")
+		}
+
+		if condition == nil {
+			whereExpressions[counter] = goqu.C(key).IsNull()
+		} else {
+			whereExpressions[counter] = goqu.C(key).Eq(condition)
+		}
+		counter++
+	}
+
+	orderExpressions := make([]exp.OrderedExpression, len(orders))
+	for i, order := range orders {
+		exitCol := false
+		for _, col := range(tableMap.Columns) {
+			if col.ColumnName == order.Column {
+				exitCol = true
+			}
+		}
+		if !exitCol {
+			return nil, errors.New("record is not table")
+		}
+
+		if order.Ascending {
+			orderExpressions[i] = goqu.I(order.Column).Asc()
+		} else {
+			orderExpressions[i] = goqu.I(order.Column).Desc()
+		}
+	}
+
+	query := Dialect.
+		Select(selectExpressions...).
+		From(goqu.T(tableMap.TableName)).
+		Where(whereExpressions...).
+		Order(orderExpressions...).
+		Offset(uint(pager.Cursor - 1)).
+		Limit(uint(pager.Limit))
+
+	sql, args, err := query.Prepared(true).ToSQL()
+	if err != nil {
+		return nil, err
+	}
+
+	return executer.Select(records, sql, args...)
+}
+```
+
+### tableFor
+ここまで説明してきた拡張関数で`tableFor`という関数が出てきた。  
+これは、goの構造体から、テーブル定義を引っ張ってくるためのものだ。  
+gorpは一度goコードを読んで解釈したテーブル定義は、`DbMap`という構造体に保持してくれている。  
+それを検索して取得したい。  
+
+また、これはgorpのコードにある概念を再実装しているにすぎない。参考にしてほしい。  
+https://github.com/go-gorp/gorp/blob/main/gorp.go#L371-L388
+
+```
+func GetType(i interface{}) (reflect.Type, error) {
+	t := reflect.TypeOf(i)
+
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	if t.Kind() == reflect.Struct {
+		return t, nil
+	}
+
+	if t.Kind() == reflect.Slice {
+		return t.Elem(), nil
+	}
+
+	return nil, fmt.Errorf("type shoud be struct or slice. type: %v", reflect.TypeOf(i))
+}
+
+func tableFor(executor gorp.SqlExecutor, i interface{}) (*gorp.TableMap, error) {
+	t, err := basic.GetType(i)
+	if err != nil {
+		return nil, err
+	}
+
+	if dbMap, ok := executor.(*gorp.DbMap); ok {
+		return dbMap.TableFor(t, false)
+	}
+
+	return nil, fmt.Errorf("no table found for type: %v", t.Name())
+}
+```
+
+## sqlの定義
+ここまでは、SqlExecutorを拡張して、便利な関数を追加する方法を紹介してきた。  
+単純に固定のsqlを定義して、特定の機能を提供する関数についても説明しておく。  
+特に新規性のあるテクニックではないので、想像つく読者には飛ばしてもらって構わない内容だ。  
+
+先に複雑なsqlとして上げた、以下のsqlを定義してみたい。  
+```sql
+select post.id
+     , post.title
+     , post.content
+     , post.tag
+  from post as p
+  left outer join comment as c
+          on p.id = c.post_id
+ where c.user_id = <user_id>
+   and c.content like '%content%'
+     ;
+```
 
 
+```go
+type PostRepository interface {
+	Executor
+    GetPostByComenntUser(userId int, content string) ([]Post, error)
+}
+```
 
+TODO コード例
 
+こうしておくとsql部分のテストを独立して定義できる。  
 
-ソフトウェアのトレーニングとして、会社のリポジトリを借りて、会社のシステムの作り直しを勝手に行っていた。
-会社で使うかは知ったことではないが、自分で書いた部分のコードで、ドメイン知識が関係ない部分はプロジェクトテンプレートとして以下のプロジェクトにコミットしている。
-https://github.com/motojouya/ddd_go
+TODO テストコード例も書いておきたいな。いや、めんどうか。
+dockertestのコード例になるので、dockertestのコード例を参照してくれでいいか。
+テーブルを定義するのは、以前、揃える記事を書いたので、そのリンクで
 
+## まとめ
+gorpとgoquを使って、どのようにDBアクセスモジュールを実装するか、それはどう便利なのかを解説してきた。  
 
+gorpもgoquもgithub repositoryを参照すると、すでに数年更新がない。  
+別の話題の中で、gorpを使っていると発言したらclaude codeにはgormへの移行を提案されたほどだ。  
+ここで述べてきたような良さを説明したら、無理に移行しなくていいという議決に至ったが、それでも新規で採用するには少し不安があるというのもそのとおりだと思う。  
+
+筆者個人としては、gorpもgoquも素晴らしいライブラリであるので、今後メンテナンスされて、信頼されるライブラリであってほしい。  
+筆者もgorpやgoquにコミットできればいいかもしれないが、現在は時間を割くことができない。  
+とりあえずできることとして、利用方法やどういった使い方がマッチするのかを記事にしておくことで、少しでも読者の目に触れればと思う。  
+
+すでに言及したがupper/dbはgoquほどの表現力はないが、gorpとgoquの両方の機能を持ち、似たようなAPIでモジュールを提供してくれそうだ。  
+この記事に共感してもらったが、利用に不安のある読者には検討してもらうといいかもしれない。  
 
