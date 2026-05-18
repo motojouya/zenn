@@ -435,8 +435,8 @@ select coalesce(max(post_id), 0) from post where author_id = ?
 ```
 
 ```go
-func GetMax(executer gorp.SqlExecutor, records interface{}, maxColName string, conditions map[string]interface{}) (int, error) {
-	tableMap, err := tableFor(executer, records) // tableForはGoの構造体から、table情報を引っ張る関数。後で解説
+func GetMax(executer gorp.SqlExecutor, record interface{}, maxColName string, conditions map[string]interface{}) (int, error) {
+	tableMap, err := tableFor(executer, record) // tableForはGoの構造体から、table情報を引っ張る関数。後で解説
 	if err != nil {
 		return 0, errors.New("record is not table")
 	}
@@ -458,7 +458,7 @@ func GetMax(executer gorp.SqlExecutor, records interface{}, maxColName string, c
 		counter++
 	}
 
-	sql, args, err := Dialect.
+	sql, args, err := Dialect("postgres").
 		Select(goqu.COALESCE(goqu.MAX(maxColName), 0)).
 		From(goqu.T(tableMap.TableName)).
 		Where(whereExpressions...).
@@ -568,7 +568,7 @@ func GetPaging(executer gorp.SqlExecutor, records interface{}, conditions map[st
 		}
 	}
 
-	query := Dialect.
+	query := Dialect("postgres").
 		Select(selectExpressions...).
 		From(goqu.T(tableMap.TableName)).
 		Where(whereExpressions...).
@@ -652,15 +652,51 @@ type PostRepository interface {
 	Executor
     GetPostByComenntUser(userId int, content string) ([]Post, error)
 }
+
+type postRepository struct {
+	Executor
+}
+
+func (pr postRepository) GetPostByComenntUser(userId int, content string) ([]Post, error) {
+
+	query := Dialect("postgres").Select(
+		goqu.I("post.id"),
+		goqu.I("post.title"),
+		goqu.I("post.content"),
+		goqu.I("post.tag"),
+	).From(goqu.T("post").As("p")).
+		InnerJoin(
+			goqu.T("comment").As("c"),
+			goqu.On(goqu.I("c.post_id").Eq(goqu.I("p.id"))),
+		).
+		Where(
+			goqu.I("c.user_id").Eq(userId),
+			goqu.I("c.content").Like("%"+content+"%"),
+		)
+
+	sql, args, err := query.Prepared(true).ToSQL()
+	if err != nil {
+		return nil, err
+	}
+
+	var records []Post
+	_, err := pr.Executer.Select(&records, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
 ```
 
-TODO コード例
+postRepository単独でsqlをテストできるので、sql部分のテストは独立して評価できるようになる。  
+筆者はdockertestというツールを利用して、goのコードからpostgresqlをdocker上で立ち上げてテストする形を取っている。  
+https://github.com/ory/dockertest
 
-こうしておくとsql部分のテストを独立して定義できる。  
-
-TODO テストコード例も書いておきたいな。いや、めんどうか。
-dockertestのコード例になるので、dockertestのコード例を参照してくれでいいか。
-テーブルを定義するのは、以前、揃える記事を書いたので、そのリンクで
+DBレコードに対応する構造体を定義しているので、それらの構造体の定義をテストファイル上に定義して、実行している。  
+sqlで評価されるべきデータが一目瞭然というふうになるようにしているが、ちなみに書き方は少しだけ変なことをしている。  
+興味があれば、読んで貰えればと思う。  
+https://zenn.dev/motojouya/articles/golang_space_adjustment
 
 ## まとめ
 gorpとgoquを使って、どのようにDBアクセスモジュールを実装するか、それはどう便利なのかを解説してきた。  
