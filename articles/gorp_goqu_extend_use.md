@@ -74,7 +74,7 @@ const users = await prisma.user.findMany({
 これならば関数チェーンがひどくなることなどないだろう。関数のinterfaceもシンプルだし、独立したモジュールとして存在できる。  
 ただし、上記の例で言えば、`findMany`にわたすjsonで何でもできてしまい、DBアクセスモジュール側の役割が非常に薄くなる。  
 ロジックとしては、where句を表現するjsonがここで重要なロジックであり、これをテストしたいわけだ。そしてそれはデータベースにアクセスしてテストしたほうがいい。  
-つまり利用側でjsonを定義しても、そのjsonの中身がテストで精査されないので、テストの観点が漏れてしまう。  
+つまり利用側でjsonを定義しても、`findMany`をモックすると、jsonの中身がテストで精査されないので、テストの観点が漏れてしまう。  
 
 これも解消するのであれば、DBアクセスモジュールの関数定義を以下として、jsonを定義する部分を隠蔽すべきだろう。  
 ```ts
@@ -147,15 +147,15 @@ func (da DatabaseAccess) GetProductByDate(ctx context.Context, fromDate time.Tim
 }
 ```
 
-では、どこに線を引くかというところだが、筆者の基準としてはここだろうと考える。
+では、簡単なsqlの定義として、どこに線を引くかというところだが、筆者の基準としてはここだろうと考える。
 - 単一のテーブルにしかアクセスしない
 - with句、group by句、order by句がない
 - テーブルの主キー、あるいはユニークキーの一致のみが条件となる
 - select,update,delete,insertはすべて対象
 
-ここではDataAccessの話なのでモジュール名が違うが、ドメイン駆動設計のRepositoryなどは、以下のinterfaceが定義されることが多いだろう。  
+キーで検索する場合は、以下のようなinterfaceとなるだろう。  
 ```go
-type PostRepository interface {
+type PostDataAccess interface {
   GetPostById(id int) Post
 }
 ```
